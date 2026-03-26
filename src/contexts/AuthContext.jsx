@@ -1,79 +1,86 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
-const ADMIN_EMAIL = "admin@findes.com";
 
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  const syncRequestRef = useRef(0);
 
-  const loadProfile = async (user) => {
-    if (!user || user.is_anonymous) {
-      setProfile(null);
+  const clearLocalSession = async () => {
+    await supabase.auth.signOut({ scope: "local" });
+    setSession(null);
+    setProfile(null);
+  };
+
+  const sessionIsExpiredLocally = (nextSession) => {
+    const expiresAt = nextSession?.expires_at;
+    if (!expiresAt) {
+      return false;
+    }
+
+    return expiresAt * 1000 <= Date.now();
+  };
+
+  const loadProfile = async (userId) => {
+    if (!userId) {
       return null;
     }
 
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("id", userId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
-    const nextProfile =
-      data ??
-      (user.email === ADMIN_EMAIL
-        ? {
-            id: user.id,
-            email: user.email,
-            full_name: "Admin Findes",
-            role: "admin"
-          }
-        : null);
-
-    setProfile(nextProfile);
-    return nextProfile;
+    return data ?? null;
   };
 
-  const syncSession = async (incomingSession) => {
-    setSession(incomingSession);
+  const syncSession = async (nextSession) => {
+    const requestId = syncRequestRef.current + 1;
+    syncRequestRef.current = requestId;
 
-    const currentUser = incomingSession?.user ?? null;
+    setSession(nextSession ?? null);
 
-    if (!currentUser) {
+    const user = nextSession?.user ?? null;
+    if (!user || user.is_anonymous) {
       setProfile(null);
-      return;
+      return null;
     }
 
-    if (currentUser.is_anonymous) {
-      setProfile(null);
-      return;
+    const nextProfile = await loadProfile(user.id);
+    if (syncRequestRef.current !== requestId) {
+      return null;
     }
 
-    const nextProfile = await loadProfile(currentUser);
+    setProfile(nextProfile);
     return nextProfile;
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
+    const initializeAuth = async () => {
       try {
         const {
           data: { session: currentSession }
         } = await supabase.auth.getSession();
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
-        await syncSession(currentSession);
+        await syncSession(currentSession ?? null);
       } catch (error) {
         console.error("Erro ao iniciar autenticação:", error);
         if (mounted) {
-          setProfile(null);
+          await clearLocalSession();
         }
       } finally {
         if (mounted) {
@@ -82,37 +89,24 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    init();
-
-    const handleSessionChange = async (nextSession) => {
-      if (!mounted) return;
-
-      try {
-        setLoading(true);
-        await syncSession(nextSession);
-      } catch (error) {
-        console.error("Erro no onAuthStateChange:", error);
-        if (mounted) {
-          setProfile(null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
+    initializeAuth();
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (isSigningIn) {
-        return;
-      }
+      window.setTimeout(async () => {
+        if (!mounted) {
+          return;
+        }
 
-      // Evita deadlocks/locks do Supabase Auth ao chamar outras operações
-      // assíncronas dentro do callback síncrono do onAuthStateChange.
-      window.setTimeout(() => {
-        handleSessionChange(nextSession);
+        try {
+          await syncSession(nextSession);
+        } catch (error) {
+          console.error("Erro no onAuthStateChange:", error);
+          if (mounted) {
+            await clearLocalSession();
+          }
+        }
       }, 0);
     });
 
@@ -120,34 +114,28 @@ export const AuthProvider = ({ children }) => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isSigningIn]);
+  }, []);
 
   const signInAdmin = async (email, password) => {
     setLoading(true);
-    setIsSigningIn(true);
 
     try {
       const response = await supabase.auth.signInWithPassword({ email, password });
-
       if (response.error) {
         return response;
       }
 
-      const nextProfile =
-        (await loadProfile(response.data.user)) ??
-        (response.data.user?.email === ADMIN_EMAIL
-          ? {
-              id: response.data.user.id,
-              email: response.data.user.email,
-              full_name: "Admin Findes",
-              role: "admin"
-            }
-          : null);
+      if (sessionIsExpiredLocally(response.data.session)) {
+        await clearLocalSession();
+        return {
+          ...response,
+          error: new Error("O token foi recebido como expirado no relógio deste dispositivo. Verifique a data e a hora do sistema e tente novamente.")
+        };
+      }
 
+      const nextProfile = await loadProfile(response.data.user?.id);
       if (nextProfile?.role !== "admin") {
-        await supabase.auth.signOut();
-        setSession(null);
-        setProfile(null);
+        await clearLocalSession();
         return {
           ...response,
           error: new Error("Acesso permitido apenas para administradores.")
@@ -158,15 +146,15 @@ export const AuthProvider = ({ children }) => {
       setProfile(nextProfile);
       return response;
     } finally {
-      setIsSigningIn(false);
       setLoading(false);
     }
   };
 
   const signOut = async () => {
     setLoading(true);
+
     try {
-      const response = await supabase.auth.signOut();
+      const response = await supabase.auth.signOut({ scope: "local" });
       setSession(null);
       setProfile(null);
       return response;
@@ -182,10 +170,7 @@ export const AuthProvider = ({ children }) => {
       profile,
       loading,
       isAnonymous: !session?.user,
-      isAdmin: Boolean(
-        session?.user &&
-          (profile?.role === "admin" || session.user.email === ADMIN_EMAIL)
-      ),
+      isAdmin: Boolean(session?.user && profile?.role === "admin"),
       signInAdmin,
       signOut
     }),

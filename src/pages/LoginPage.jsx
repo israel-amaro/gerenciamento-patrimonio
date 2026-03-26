@@ -9,7 +9,7 @@ const initialForm = {
 };
 
 const LoginPage = () => {
-  const { isAdmin, signInAdmin } = useAuth();
+  const { isAdmin, loading, signInAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState(initialForm);
@@ -18,7 +18,7 @@ const LoginPage = () => {
 
   const destination = useMemo(() => location.state?.from?.pathname || "/app/dashboard", [location.state]);
 
-  if (isAdmin) {
+  if (!loading && isAdmin) {
     return <Navigate to={destination} replace />;
   }
 

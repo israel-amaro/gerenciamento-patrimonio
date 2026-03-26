@@ -18,10 +18,17 @@ const items = [
 const AppLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut, isAdmin } = useAuth();
+  const { profile, signOut, isAdmin, loading } = useAuth();
+
   const visibleItems = items.filter((item) => {
-    if (!item.roles) return true;
-    if (isAdmin) return true;
+    if (!item.roles) {
+      return true;
+    }
+
+    if (isAdmin) {
+      return true;
+    }
+
     return item.roles.includes(profile?.role);
   });
 
@@ -32,12 +39,12 @@ const AppLayout = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="w-64 border-r bg-card h-full flex flex-col shrink-0">
-        <div className="h-16 flex items-center px-6 border-b">
-          <span className="font-bold text-lg text-primary tracking-tight">EquipControl</span>
+      <aside className="h-full w-64 shrink-0 border-r bg-card">
+        <div className="flex h-16 items-center border-b px-6">
+          <span className="text-lg font-bold tracking-tight text-primary">EquipControl</span>
         </div>
 
-        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
           {visibleItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path);
 
@@ -46,7 +53,7 @@ const AppLayout = () => {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -59,14 +66,14 @@ const AppLayout = () => {
           })}
         </nav>
 
-        <div className="p-4 border-t text-xs text-muted-foreground uppercase">
-          {isAdmin ? (profile?.role || "admin") : "Público"}
+        <div className="border-t p-4 text-xs uppercase text-muted-foreground">
+          {loading ? "Carregando" : isAdmin ? profile?.role || "admin" : "Público"}
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b bg-card flex justify-end items-center px-6 shrink-0 gap-2">
-          {isAdmin ? (
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-end gap-2 border-b bg-card px-6">
+          {!loading && isAdmin ? (
             <>
               <Button variant="ghost" className="flex items-center gap-2">
                 <Icon name="user-circle" />
@@ -76,11 +83,11 @@ const AppLayout = () => {
                 <LogOut className="h-4 w-4" />
               </Button>
             </>
-          ) : (
+          ) : !loading ? (
             <Button variant="ghost" onClick={() => navigate("/admin/login")}>
               Admin
             </Button>
-          )}
+          ) : null}
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
