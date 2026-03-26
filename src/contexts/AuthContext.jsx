@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const loadProfile = async (user) => {
     if (!user || user.is_anonymous) {
@@ -83,9 +84,7 @@ export const AuthProvider = ({ children }) => {
 
     init();
 
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    const handleSessionChange = async (nextSession) => {
       if (!mounted) return;
 
       try {
@@ -101,16 +100,31 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
         }
       }
+    };
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (isSigningIn) {
+        return;
+      }
+
+      // Evita deadlocks/locks do Supabase Auth ao chamar outras operações
+      // assíncronas dentro do callback síncrono do onAuthStateChange.
+      window.setTimeout(() => {
+        handleSessionChange(nextSession);
+      }, 0);
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [isSigningIn]);
 
   const signInAdmin = async (email, password) => {
     setLoading(true);
+    setIsSigningIn(true);
 
     try {
       const response = await supabase.auth.signInWithPassword({ email, password });
@@ -144,6 +158,7 @@ export const AuthProvider = ({ children }) => {
       setProfile(nextProfile);
       return response;
     } finally {
+      setIsSigningIn(false);
       setLoading(false);
     }
   };

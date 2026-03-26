@@ -19,7 +19,11 @@ const AppLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut, isAdmin } = useAuth();
-  const visibleItems = items.filter((item) => !item.roles || item.roles.includes(profile?.role));
+  const visibleItems = items.filter((item) => {
+    if (!item.roles) return true;
+    if (isAdmin) return true;
+    return item.roles.includes(profile?.role);
+  });
 
   const handleLogout = async () => {
     await signOut();
@@ -55,7 +59,9 @@ const AppLayout = () => {
           })}
         </nav>
 
-        <div className="p-4 border-t text-xs text-muted-foreground uppercase">{isAdmin ? profile?.role : "Público"}</div>
+        <div className="p-4 border-t text-xs text-muted-foreground uppercase">
+          {isAdmin ? (profile?.role || "admin") : "Público"}
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -64,7 +70,7 @@ const AppLayout = () => {
             <>
               <Button variant="ghost" className="flex items-center gap-2">
                 <Icon name="user-circle" />
-                {profile?.full_name || "Usuário"}
+                {profile?.full_name || "Admin Findes"}
               </Button>
               <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sair">
                 <LogOut className="h-4 w-4" />

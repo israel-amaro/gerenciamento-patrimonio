@@ -2,7 +2,11 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 const RoleRoute = ({ roles, children }) => {
-  const { profile, loading, isAnonymous } = useAuth();
+  const { profile, loading, isAnonymous, isAdmin } = useAuth();
+
+  if (isAdmin && roles.includes("admin")) {
+    return children;
+  }
 
   if (loading) {
     return null;
