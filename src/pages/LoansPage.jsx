@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState, Select } from "../components/ui";
-import { useAuth } from "../contexts/AuthContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { loansApi, lookupApi } from "../lib/api";
 import { formatDateTime } from "../lib/utils";
 
 const initialForm = {
   box_id: "",
-  professor_id: "",
+  responsible_name: "",
   room_id: "",
   session_class: "",
   expected_return_at: "",
@@ -21,7 +20,6 @@ const statusMap = {
 };
 
 const LoansPage = () => {
-  const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -30,14 +28,12 @@ const LoansPage = () => {
 
   const loans = useAsyncData(() => loansApi.list(search), [search]);
   const lookups = useAsyncData(async () => {
-    const [boxes, profiles, rooms] = await Promise.all([lookupApi.boxes(), lookupApi.profiles(), lookupApi.rooms()]);
-    return { boxes, profiles, rooms };
+    const [boxes, rooms] = await Promise.all([lookupApi.boxes(), lookupApi.rooms()]);
+    return { boxes, rooms };
   }, []);
 
-  const selectableProfessors = useMemo(
-    () => lookups.data?.profiles.filter((item) => item.role === "professor") || [],
-    [lookups.data]
-  );
+  const getBoxName = (boxId) => lookups.data?.boxes.find((box) => box.id === boxId)?.name || boxId;
+  const getRoomName = (roomId) => lookups.data?.rooms.find((room) => room.id === roomId)?.name || roomId;
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -50,18 +46,13 @@ const LoansPage = () => {
     setSubmitting(true);
 
     try {
-      if (!form.box_id || !form.room_id || !form.session_class || !form.expected_return_at) {
-        throw new Error("Preencha caixa, sala, turma e previsão de devolução.");
-      }
-
-      const professorId = profile?.role === "professor" ? profile.id : form.professor_id;
-      if (!professorId) {
-        throw new Error("Selecione o professor responsável.");
+      if (!form.box_id || !form.room_id || !form.session_class || !form.expected_return_at || !form.responsible_name.trim()) {
+        throw new Error("Preencha caixa, responsável, sala, turma e previsão de devolução.");
       }
 
       await loansApi.create({
         box_id: form.box_id,
-        professor_id: professorId,
+        responsible_name: form.responsible_name.trim(),
         room_id: form.room_id,
         session_class: form.session_class.trim(),
         expected_return_at: new Date(form.expected_return_at).toISOString(),
@@ -82,7 +73,7 @@ const LoansPage = () => {
 
   const handleReturn = async (loan) => {
     try {
-      await loansApi.markReturned(loan.id, loan.box_id);
+      await loansApi.markReturned(loan.id);
       await loans.reload();
     } catch (err) {
       setFeedback(err.message || "Não foi possível registrar a devolução.");
@@ -110,16 +101,9 @@ const LoansPage = () => {
                 ))}
               </Select>
             </FormField>
-            {profile?.role === "professor" ? null : (
-              <FormField label="Professor">
-                <Select name="professor_id" value={form.professor_id} onChange={handleChange}>
-                  <option value="">Selecione</option>
-                  {selectableProfessors.map((user) => (
-                    <option key={user.id} value={user.id}>{user.full_name}</option>
-                  ))}
-                </Select>
-              </FormField>
-            )}
+            <FormField label="Responsável">
+              <Input name="responsible_name" value={form.responsible_name} onChange={handleChange} />
+            </FormField>
             <FormField label="Local / Turma">
               <Select name="room_id" value={form.room_id} onChange={handleChange}>
                 <option value="">Selecione</option>
@@ -176,9 +160,9 @@ const LoansPage = () => {
               <tbody>
                 {loans.data.map((loan) => (
                   <tr key={loan.id} className="hover:bg-muted/50">
-                    <td className="font-medium">{loan.boxes?.name}</td>
-                    <td>{loan.profiles?.full_name}</td>
-                    <td className="text-muted-foreground">{loan.rooms?.name} / {loan.session_class}</td>
+                    <td className="font-medium">{getBoxName(loan.box_id)}</td>
+                    <td>{loan.responsible_name}</td>
+                    <td className="text-muted-foreground">{getRoomName(loan.room_id)} / {loan.session_class}</td>
                     <td>{formatDateTime(loan.borrowed_at)}</td>
                     <td>
                       <Badge variant={statusMap[loan.status]?.[1] || "outline"}>

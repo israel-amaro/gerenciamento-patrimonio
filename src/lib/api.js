@@ -96,7 +96,7 @@ export const loansApi = {
   list(search = "") {
     let query = supabase
       .from("loans")
-      .select("*, boxes(id, name), profiles(id, full_name), rooms(id, name)")
+      .select("id, box_id, room_id, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
       .order("borrowed_at", { ascending: false });
 
     if (search) {
@@ -105,14 +105,20 @@ export const loansApi = {
 
     return unwrap(query);
   },
-  async create(payload) {
-    const loan = await unwrap(supabase.from("loans").insert(payload).select("id, box_id").single());
-    await unwrap(supabase.from("boxes").update({ status: "borrowed" }).eq("id", loan.box_id));
-    return loan;
+  create(payload) {
+    return unwrap(
+      supabase.rpc("request_loan", {
+        p_box_id: payload.box_id,
+        p_responsible_name: payload.responsible_name,
+        p_room_id: payload.room_id,
+        p_session_class: payload.session_class,
+        p_expected_return_at: payload.expected_return_at,
+        p_notes: payload.notes
+      })
+    );
   },
-  async markReturned(id, boxId) {
-    await unwrap(supabase.from("loans").update({ status: "returned", returned_at: new Date().toISOString() }).eq("id", id));
-    await unwrap(supabase.from("boxes").update({ status: "available" }).eq("id", boxId));
+  markReturned(id) {
+    return unwrap(supabase.rpc("return_loan", { p_loan_id: id }));
   }
 };
 
@@ -121,13 +127,21 @@ export const checklistsApi = {
     return unwrap(
       supabase
         .from("professor_lab_checklists")
-        .select("*, labs(id, name), profiles(id, full_name)")
+        .select("id, lab_id, responsible_name, session_class, reported_at, status, notes")
         .order("reported_at", { ascending: false })
         .limit(10)
     );
   },
   create(payload) {
-    return unwrap(supabase.from("professor_lab_checklists").insert(payload).select("id").single());
+    return unwrap(
+      supabase.rpc("submit_public_checklist", {
+        p_lab_id: payload.lab_id,
+        p_responsible_name: payload.responsible_name,
+        p_session_class: payload.session_class,
+        p_status: payload.status,
+        p_notes: payload.notes
+      })
+    );
   }
 };
 

@@ -2,17 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
+const ADMIN_EMAIL = "admin@findes.com";
 
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const ensurePublicSession = async () => {
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error) throw error;
-    return data.session ?? null;
-  };
 
   const loadProfile = async (user) => {
     if (!user || user.is_anonymous) {
@@ -28,20 +23,25 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error;
 
-    setProfile(data ?? null);
-    return data ?? null;
+    const nextProfile =
+      data ??
+      (user.email === ADMIN_EMAIL
+        ? {
+            id: user.id,
+            email: user.email,
+            full_name: "Admin Findes",
+            role: "admin"
+          }
+        : null);
+
+    setProfile(nextProfile);
+    return nextProfile;
   };
 
   const syncSession = async (incomingSession) => {
-    let nextSession = incomingSession;
+    setSession(incomingSession);
 
-    if (!nextSession) {
-      nextSession = await ensurePublicSession();
-    }
-
-    setSession(nextSession);
-
-    const currentUser = nextSession?.user ?? null;
+    const currentUser = incomingSession?.user ?? null;
 
     if (!currentUser) {
       setProfile(null);
@@ -54,13 +54,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const nextProfile = await loadProfile(currentUser);
-
-    if (nextProfile?.role !== "admin") {
-      await supabase.auth.signOut({ scope: "local" });
-      const publicSession = await ensurePublicSession();
-      setSession(publicSession);
-      setProfile(null);
-    }
+    return nextProfile;
   };
 
   useEffect(() => {
@@ -118,19 +112,52 @@ export const AuthProvider = ({ children }) => {
   const signInAdmin = async (email, password) => {
     setLoading(true);
 
-    const response = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const response = await supabase.auth.signInWithPassword({ email, password });
 
-    if (response.error) {
-      setLoading(false);
+      if (response.error) {
+        return response;
+      }
+
+      const nextProfile =
+        (await loadProfile(response.data.user)) ??
+        (response.data.user?.email === ADMIN_EMAIL
+          ? {
+              id: response.data.user.id,
+              email: response.data.user.email,
+              full_name: "Admin Findes",
+              role: "admin"
+            }
+          : null);
+
+      if (nextProfile?.role !== "admin") {
+        await supabase.auth.signOut();
+        setSession(null);
+        setProfile(null);
+        return {
+          ...response,
+          error: new Error("Acesso permitido apenas para administradores.")
+        };
+      }
+
+      setSession(response.data.session ?? null);
+      setProfile(nextProfile);
       return response;
+    } finally {
+      setLoading(false);
     }
-
-    return response;
   };
 
   const signOut = async () => {
     setLoading(true);
-    return supabase.auth.signOut();
+    try {
+      const response = await supabase.auth.signOut();
+      setSession(null);
+      setProfile(null);
+      return response;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const value = useMemo(
@@ -139,11 +166,10 @@ export const AuthProvider = ({ children }) => {
       user: session?.user ?? null,
       profile,
       loading,
-      isAnonymous: Boolean(session?.user?.is_anonymous),
+      isAnonymous: !session?.user,
       isAdmin: Boolean(
         session?.user &&
-          !session.user.is_anonymous &&
-          profile?.role === "admin"
+          (profile?.role === "admin" || session.user.email === ADMIN_EMAIL)
       ),
       signInAdmin,
       signOut

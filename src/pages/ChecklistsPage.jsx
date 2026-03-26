@@ -1,19 +1,18 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
-import { useAuth } from "../contexts/AuthContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { checklistsApi, lookupApi } from "../lib/api";
 import { formatDateTime } from "../lib/utils";
 
 const ChecklistsPage = () => {
-  const { profile } = useAuth();
   const [view, setView] = useState("form");
-  const [form, setForm] = useState({ lab_id: "", session_class: "", notes: "" });
+  const [form, setForm] = useState({ lab_id: "", responsible_name: "", session_class: "", notes: "" });
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const labs = useAsyncData(() => lookupApi.labs(), []);
   const recent = useAsyncData(() => checklistsApi.list(), []);
+  const getLabName = (labId) => labs.data?.find((lab) => lab.id === labId)?.name || labId;
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -25,19 +24,19 @@ const ChecklistsPage = () => {
     setSubmitting(true);
 
     try {
-      if (!form.lab_id || !form.session_class.trim()) {
-        throw new Error("Selecione o laboratório e informe a disciplina.");
+      if (!form.lab_id || !form.responsible_name.trim() || !form.session_class.trim()) {
+        throw new Error("Selecione o laboratório e informe o responsável e a disciplina.");
       }
 
       await checklistsApi.create({
         lab_id: form.lab_id,
-        professor_id: profile.id,
+        responsible_name: form.responsible_name.trim(),
         session_class: form.session_class.trim(),
         status,
         notes: form.notes.trim() || null
       });
 
-      setForm({ lab_id: "", session_class: "", notes: "" });
+      setForm({ lab_id: "", responsible_name: "", session_class: "", notes: "" });
       setView("success");
       await recent.reload();
     } catch (err) {
@@ -67,6 +66,12 @@ const ChecklistsPage = () => {
                   ))}
                 </Select>
               </FormField>
+              <FormField label="Responsável">
+                <Input name="responsible_name" value={form.responsible_name} onChange={handleChange} placeholder="Ex: Prof. Maria" />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
               <FormField label="Disciplina">
                 <Input name="session_class" value={form.session_class} onChange={handleChange} placeholder="Ex: Algoritmos" />
               </FormField>
@@ -123,8 +128,8 @@ const ChecklistsPage = () => {
           {recent.data?.map((item) => (
             <div key={item.id} className="flex items-center justify-between border rounded-md p-3">
               <div>
-                <div className="font-medium">{item.labs?.name}</div>
-                <div className="text-sm text-muted-foreground">{item.session_class} • {formatDateTime(item.reported_at)}</div>
+                <div className="font-medium">{getLabName(item.lab_id)}</div>
+                <div className="text-sm text-muted-foreground">{item.responsible_name} • {item.session_class} • {formatDateTime(item.reported_at)}</div>
               </div>
               <Badge variant={item.status === "ok" ? "success" : "warning"}>
                 {item.status === "ok" ? "Tudo OK" : "Com Problemas"}
