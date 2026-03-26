@@ -4,55 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EquipControl - Educational Equipment System</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <script src="https://unpkg.com/@remix-run/router@1.15.3/dist/router.umd.min.js"></script>
-  <script src="https://unpkg.com/react-router@6.22.3/dist/umd/react-router.production.min.js"></script>
-  <script src="https://unpkg.com/react-router-dom@6.22.3/dist/umd/react-router-dom.production.min.js"></script>
-
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            background: "hsl(210 40% 98%)",
-            foreground: "hsl(222.2 84% 4.9%)",
-            card: "hsl(0 0% 100%)",
-            "card-foreground": "hsl(222.2 84% 4.9%)",
-            primary: "hsl(222.2 47.4% 11.2%)",
-            "primary-foreground": "hsl(210 40% 98%)",
-            muted: "hsl(210 40% 96.1%)",
-            "muted-foreground": "hsl(215.4 16.3% 46.9%)",
-            border: "hsl(214.3 31.8% 91.4%)",
-            destructive: "hsl(0 84.2% 60.2%)",
-            success: "hsl(142.1 76.2% 36.3%)",
-            warning: "hsl(38 92% 50%)"
-          },
-          fontFamily: {
-            sans: ["Inter", "system-ui", "sans-serif"]
-          }
-        }
-      }
-    };
-  </script>
-
-  <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
   <div id="root"></div>
-
-  <script type="text/babel" src="./js/components.js"></script>
-  <script type="text/babel" src="./js/pages.js"></script>
-  <script type="text/babel" src="./js/layout.js"></script>
-  <script type="text/babel" src="./js/app.js"></script>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

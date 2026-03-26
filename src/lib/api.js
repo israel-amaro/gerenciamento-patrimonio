@@ -1,0 +1,178 @@
+import { supabase } from "./supabaseClient";
+
+const unwrap = async (promise) => {
+  const { data, error } = await promise;
+  if (error) {
+    throw error;
+  }
+  return data;
+};
+
+export const dashboardApi = {
+  async getStats() {
+    const [assets, borrowedBoxes, openIncidents, okAudits, totalAudits] = await Promise.all([
+      supabase.from("assets").select("*", { count: "exact", head: true }),
+      supabase.from("boxes").select("*", { count: "exact", head: true }).eq("status", "borrowed"),
+      supabase.from("incidents").select("*", { count: "exact", head: true }).in("status", ["open", "in_review", "in_maintenance"]),
+      supabase.from("audits").select("*", { count: "exact", head: true }).eq("status", "functioning_normally"),
+      supabase.from("audits").select("*", { count: "exact", head: true })
+    ]);
+
+    const errors = [assets.error, borrowedBoxes.error, openIncidents.error, okAudits.error, totalAudits.error].filter(Boolean);
+    if (errors.length) {
+      throw errors[0];
+    }
+
+    return {
+      totalAssets: assets.count || 0,
+      borrowedBoxes: borrowedBoxes.count || 0,
+      openIncidents: openIncidents.count || 0,
+      okRate: totalAudits.count ? Math.round(((okAudits.count || 0) / totalAudits.count) * 100) : 0
+    };
+  }
+};
+
+export const lookupApi = {
+  assetTypes: () => unwrap(supabase.from("asset_types").select("*").order("name")),
+  labs: () => unwrap(supabase.from("labs").select("*").order("name")),
+  rooms: () => unwrap(supabase.from("rooms").select("*").order("name")),
+  profiles: () => unwrap(supabase.from("profiles").select("id, full_name, email, role").order("full_name")),
+  assets: () => unwrap(supabase.from("assets").select("id, tag_code, model, status").order("tag_code")),
+  boxes: () => unwrap(supabase.from("boxes").select("id, name, status").order("name"))
+};
+
+export const assetsApi = {
+  list(search = "") {
+    let query = supabase
+      .from("assets")
+      .select("*, asset_types(id, name), labs(id, name)")
+      .order("created_at", { ascending: false });
+
+    if (search) {
+      query = query.or(`tag_code.ilike.%${search}%,serial_number.ilike.%${search}%,model.ilike.%${search}%`);
+    }
+
+    return unwrap(query);
+  },
+  create(payload) {
+    return unwrap(supabase.from("assets").insert(payload).select("id").single());
+  },
+  update(id, payload) {
+    return unwrap(supabase.from("assets").update(payload).eq("id", id).select("id").single());
+  }
+};
+
+export const boxesApi = {
+  list(search = "") {
+    let query = supabase
+      .from("boxes")
+      .select("*, box_assets(asset_id, assets(id, tag_code, model))")
+      .order("created_at", { ascending: false });
+
+    if (search) {
+      query = query.ilike("name", `%${search}%`);
+    }
+
+    return unwrap(query);
+  },
+  async create({ assetIds, ...payload }) {
+    const box = await unwrap(supabase.from("boxes").insert(payload).select("id").single());
+    if (assetIds.length) {
+      await unwrap(supabase.from("box_assets").insert(assetIds.map((assetId) => ({ box_id: box.id, asset_id: assetId }))));
+    }
+    return box;
+  },
+  async update(id, { assetIds, ...payload }) {
+    await unwrap(supabase.from("boxes").update(payload).eq("id", id));
+    await unwrap(supabase.from("box_assets").delete().eq("box_id", id));
+    if (assetIds.length) {
+      await unwrap(supabase.from("box_assets").insert(assetIds.map((assetId) => ({ box_id: id, asset_id: assetId }))));
+    }
+    return { id };
+  }
+};
+
+export const loansApi = {
+  list(search = "") {
+    let query = supabase
+      .from("loans")
+      .select("*, boxes(id, name), profiles(id, full_name), rooms(id, name)")
+      .order("borrowed_at", { ascending: false });
+
+    if (search) {
+      query = query.or(`session_class.ilike.%${search}%`);
+    }
+
+    return unwrap(query);
+  },
+  async create(payload) {
+    const loan = await unwrap(supabase.from("loans").insert(payload).select("id, box_id").single());
+    await unwrap(supabase.from("boxes").update({ status: "borrowed" }).eq("id", loan.box_id));
+    return loan;
+  },
+  async markReturned(id, boxId) {
+    await unwrap(supabase.from("loans").update({ status: "returned", returned_at: new Date().toISOString() }).eq("id", id));
+    await unwrap(supabase.from("boxes").update({ status: "available" }).eq("id", boxId));
+  }
+};
+
+export const checklistsApi = {
+  list() {
+    return unwrap(
+      supabase
+        .from("professor_lab_checklists")
+        .select("*, labs(id, name), profiles(id, full_name)")
+        .order("reported_at", { ascending: false })
+        .limit(10)
+    );
+  },
+  create(payload) {
+    return unwrap(supabase.from("professor_lab_checklists").insert(payload).select("id").single());
+  }
+};
+
+export const auditsApi = {
+  findAssetByTag(tagCode) {
+    return unwrap(
+      supabase
+        .from("assets")
+        .select("id, tag_code, model, status, labs(id, name)")
+        .eq("tag_code", tagCode)
+        .maybeSingle()
+    );
+  },
+  create(payload) {
+    return unwrap(supabase.from("audits").insert(payload).select("id").single());
+  }
+};
+
+export const incidentsApi = {
+  list(search = "") {
+    let query = supabase
+      .from("incidents")
+      .select("*, assets(id, tag_code), profiles(id, full_name)")
+      .order("created_at", { ascending: false });
+
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    return unwrap(query);
+  },
+  create(payload) {
+    return unwrap(supabase.from("incidents").insert(payload).select("id").single());
+  },
+  update(id, payload) {
+    return unwrap(supabase.from("incidents").update(payload).eq("id", id).select("id").single());
+  }
+};
+
+export const reportsApi = {
+  assetsCsv: () =>
+    unwrap(
+      supabase
+        .from("assets")
+        .select("tag_code, model, serial_number, status, labs(name), asset_types(name)")
+        .order("tag_code")
+    )
+};
