@@ -190,6 +190,42 @@ export const auditsApi = {
         .maybeSingle()
     );
   },
+  findBoxById(boxId) {
+    return unwrap(
+      supabase
+        .from("boxes")
+        .select("id, name, qr_code_value, description, expected_asset_count, status")
+        .eq("id", boxId)
+        .maybeSingle()
+    );
+  },
+  findBoxByQrValue(qrCodeValue) {
+    return unwrap(
+      supabase
+        .from("boxes")
+        .select("id, name, qr_code_value, description, expected_asset_count, status")
+        .eq("qr_code_value", qrCodeValue)
+        .maybeSingle()
+    );
+  },
+  findLabById(labId) {
+    return unwrap(
+      supabase
+        .from("labs")
+        .select("id, name, qr_code_value, location")
+        .eq("id", labId)
+        .maybeSingle()
+    );
+  },
+  findLabByQrValue(qrCodeValue) {
+    return unwrap(
+      supabase
+        .from("labs")
+        .select("id, name, qr_code_value, location")
+        .eq("qr_code_value", qrCodeValue)
+        .maybeSingle()
+    );
+  },
   create(payload) {
     return unwrap(supabase.from("audits").insert(payload).select("id").single());
   }
@@ -274,7 +310,7 @@ export const reportsApi = {
   async audits(filters = {}) {
     let query = supabase
       .from("audits")
-      .select("id, asset_id, audited_at, status, notes, assets(tag_code, model)")
+      .select("id, asset_id, box_id, lab_id, audited_at, status, notes, assets(tag_code, model), boxes(name), labs(name)")
       .order("audited_at", { ascending: false });
 
     if (filters.dateFrom) {

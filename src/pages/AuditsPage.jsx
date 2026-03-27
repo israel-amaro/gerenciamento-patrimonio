@@ -21,50 +21,121 @@ const auditDefaults = {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const extractAssetId = (value) => {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return "";
+const targetConfig = {
+  asset: {
+    title: "ativo",
+    inspectTitle: "Inspeção do ativo",
+    lookupHint: "Aponte a câmera para o QR Code do ativo ou cole manualmente o link, o ID ou a TAG.",
+    getName: (item) => item.tag_code,
+    getSecondary: (item) => [item.model, item.host_name, item.domain_name, item.labs?.name].filter(Boolean),
+    checks: [
+      ["powers_on", "Liga"],
+      ["internet_working", "Internet funcionando"],
+      ["keyboard_ok", "Teclado OK"],
+      ["mouse_ok", "Mouse OK"],
+      ["monitor_ok", "Monitor OK"],
+      ["no_physical_damage", "Sem dano físico"]
+    ],
+    incidentTitle: (item) => `Falha identificada na auditoria do ativo ${item.tag_code}`
+  },
+  box: {
+    title: "carrinho",
+    inspectTitle: "Inspeção do carrinho",
+    lookupHint: "Leia o QR do carrinho ou cole manualmente o link ou o ID.",
+    getName: (item) => item.name,
+    getSecondary: (item) => [item.description, item.expected_asset_count ? `${item.expected_asset_count} itens esperados` : null].filter(Boolean),
+    checks: [
+      ["powers_on", "Estrutura OK"],
+      ["internet_working", "Rodízios e travas OK"],
+      ["keyboard_ok", "Carregadores presentes"],
+      ["mouse_ok", "Organização interna OK"],
+      ["monitor_ok", "QR visível"],
+      ["no_physical_damage", "Sem dano físico"]
+    ],
+    incidentTitle: (item) => `Falha identificada na auditoria do carrinho ${item.name}`
+  },
+  lab: {
+    title: "laboratório",
+    inspectTitle: "Inspeção do laboratório",
+    lookupHint: "Leia o QR do laboratório ou cole manualmente o link ou o ID.",
+    getName: (item) => item.name,
+    getSecondary: (item) => [item.location].filter(Boolean),
+    checks: [
+      ["powers_on", "Equipamentos disponíveis"],
+      ["internet_working", "Internet funcionando"],
+      ["keyboard_ok", "Periféricos OK"],
+      ["mouse_ok", "Ambiente organizado"],
+      ["monitor_ok", "QR visível"],
+      ["no_physical_damage", "Sem dano físico"]
+    ],
+    incidentTitle: (item) => `Falha identificada na auditoria do laboratório ${item.name}`
   }
+};
 
-  if (uuidPattern.test(trimmed)) {
-    return trimmed;
+const getScanTargetFromReference = (value) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { kind: null, id: "" };
   }
 
   try {
     const url = new URL(trimmed);
     const parts = url.pathname.split("/").filter(Boolean);
-    const lastPart = parts.at(-1) || "";
-    return uuidPattern.test(lastPart) ? lastPart : "";
+    const scanIndex = parts.findIndex((part) => part === "scan");
+    if (scanIndex >= 0) {
+      const kind = parts[scanIndex + 1];
+      const id = parts[scanIndex + 2];
+      if (["asset", "box", "lab"].includes(kind) && uuidPattern.test(id || "")) {
+        return { kind, id };
+      }
+    }
+
+    const auditIndex = parts.findIndex((part) => part === "audits");
+    if (auditIndex >= 0) {
+      const id = parts[auditIndex + 1];
+      if (uuidPattern.test(id || "")) {
+        return { kind: "asset", id };
+      }
+    }
   } catch (_error) {
-    const match = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
-    return match?.[0] || "";
+    // ignore
   }
+
+  if (uuidPattern.test(trimmed)) {
+    return { kind: null, id: trimmed };
+  }
+
+  const match = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  return { kind: null, id: match?.[0] || "" };
 };
 
-const buildAuditIncident = (asset, form) => {
+const buildIncidentPayload = (targetType, target, form) => {
   const issues = [];
 
   if (form.status !== "functioning_normally") {
     issues.push(`Status: ${form.status}`);
   }
 
-  if (!form.powers_on) issues.push("Não liga");
-  if (!form.internet_working) issues.push("Internet indisponível");
-  if (!form.keyboard_ok) issues.push("Teclado com problema");
-  if (!form.mouse_ok) issues.push("Mouse com problema");
-  if (!form.monitor_ok) issues.push("Monitor com problema");
-  if (!form.no_physical_damage) issues.push("Dano físico identificado");
-  if (form.notes.trim()) issues.push(form.notes.trim());
+  const checks = targetConfig[targetType].checks;
+  checks.forEach(([field, label]) => {
+    if (!form[field]) {
+      issues.push(label);
+    }
+  });
+
+  if (form.notes.trim()) {
+    issues.push(form.notes.trim());
+  }
 
   if (!issues.length) {
     return null;
   }
 
   return {
-    asset_id: asset.id,
-    title: `Falha identificada na auditoria do ativo ${asset.tag_code}`,
+    asset_id: targetType === "asset" ? target.id : null,
+    box_id: targetType === "box" ? target.id : null,
+    lab_id: targetType === "lab" ? target.id : null,
+    title: targetConfig[targetType].incidentTitle(target),
     description: issues.join(" | "),
     severity: form.status === "not_functioning" || form.status === "missing" ? "high" : "medium",
     source: "audit"
@@ -77,7 +148,8 @@ const AuditsPage = () => {
   const videoRef = useRef(null);
   const scannerRef = useRef(null);
   const [lookupValue, setLookupValue] = useState(assetId || "");
-  const [asset, setAsset] = useState(null);
+  const [targetType, setTargetType] = useState("asset");
+  const [target, setTarget] = useState(null);
   const [form, setForm] = useState(auditDefaults);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -93,12 +165,12 @@ const AuditsPage = () => {
     }
   };
 
-  const findAsset = async (reference = lookupValue) => {
+  const findTarget = async (reference = lookupValue, preferredType = targetType) => {
     const trimmedReference = reference.trim();
 
     if (!trimmedReference) {
-      setAsset(null);
-      setFeedback("Informe a TAG, o link do QR ou o ID do ativo.");
+      setTarget(null);
+      setFeedback("Informe o link do QR, o ID ou a TAG do item.");
       return;
     }
 
@@ -106,30 +178,50 @@ const AuditsPage = () => {
     setLoading(true);
 
     try {
-      const parsedAssetId = extractAssetId(trimmedReference);
+      const parsed = getScanTargetFromReference(trimmedReference);
+      const candidates = parsed.kind
+        ? [parsed.kind]
+        : preferredType === "asset"
+          ? ["asset", "box", "lab"]
+          : preferredType === "box"
+            ? ["box", "asset", "lab"]
+            : ["lab", "asset", "box"];
+
       let result = null;
+      let kind = null;
 
-      if (parsedAssetId) {
-        result = await auditsApi.findAssetById(parsedAssetId);
+      for (const candidate of candidates) {
+        if (candidate === "asset") {
+          result =
+            (parsed.id ? await auditsApi.findAssetById(parsed.id) : null) ||
+            (await auditsApi.findAssetByQrValue(trimmedReference)) ||
+            (await auditsApi.findAssetByTag(trimmedReference));
+        } else if (candidate === "box") {
+          result =
+            (parsed.id ? await auditsApi.findBoxById(parsed.id) : null) ||
+            (await auditsApi.findBoxByQrValue(trimmedReference));
+        } else if (candidate === "lab") {
+          result =
+            (parsed.id ? await auditsApi.findLabById(parsed.id) : null) ||
+            (await auditsApi.findLabByQrValue(trimmedReference));
+        }
+
+        if (result) {
+          kind = candidate;
+          break;
+        }
       }
 
-      if (!result) {
-        result = await auditsApi.findAssetByQrValue(trimmedReference);
+      if (!result || !kind) {
+        throw new Error("Nenhum item encontrado para a referência informada.");
       }
 
-      if (!result) {
-        result = await auditsApi.findAssetByTag(trimmedReference);
-      }
-
-      if (!result) {
-        throw new Error("Nenhum ativo encontrado para a referência informada.");
-      }
-
-      setAsset(result);
-      setLookupValue(result.qr_code_value || result.tag_code);
+      setTarget(result);
+      setTargetType(kind);
+      setLookupValue(result.qr_code_value || result.tag_code || result.name || trimmedReference);
     } catch (err) {
-      setAsset(null);
-      setFeedback(err.message || "Não foi possível buscar o ativo.");
+      setTarget(null);
+      setFeedback(err.message || "Não foi possível localizar o item.");
     } finally {
       setLoading(false);
     }
@@ -141,7 +233,7 @@ const AuditsPage = () => {
     }
 
     setLookupValue(assetId);
-    findAsset(assetId);
+    findTarget(assetId, "asset");
   }, [assetId]);
 
   useEffect(() => {
@@ -167,7 +259,7 @@ const AuditsPage = () => {
             setLookupValue(scannedValue);
             setCameraOpen(false);
             await stopScanner();
-            await findAsset(scannedValue);
+            await findTarget(scannedValue, targetType);
           },
           {
             preferredCamera: "environment",
@@ -179,7 +271,7 @@ const AuditsPage = () => {
 
         scannerRef.current = scanner;
         await scanner.start();
-      } catch (err) {
+      } catch (_err) {
         setCameraOpen(false);
         setFeedback("Não foi possível acessar a câmera. Verifique a permissão do navegador.");
       } finally {
@@ -195,7 +287,7 @@ const AuditsPage = () => {
       active = false;
       stopScanner();
     };
-  }, [cameraOpen]);
+  }, [cameraOpen, targetType]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -208,13 +300,19 @@ const AuditsPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!target) {
+      return;
+    }
+
     setFeedback("");
     setSaving(true);
 
     try {
-      const audit = await auditsApi.create({
+      const payload = {
         auditor_id: profile.id,
-        asset_id: asset.id,
+        asset_id: targetType === "asset" ? target.id : null,
+        box_id: targetType === "box" ? target.id : null,
+        lab_id: targetType === "lab" ? target.id : null,
         status: form.status,
         powers_on: form.powers_on,
         internet_working: form.internet_working,
@@ -223,9 +321,11 @@ const AuditsPage = () => {
         monitor_ok: form.monitor_ok,
         no_physical_damage: form.no_physical_damage,
         notes: form.notes.trim() || null
-      });
+      };
 
-      const incident = buildAuditIncident(asset, form);
+      const audit = await auditsApi.create(payload);
+
+      const incident = buildIncidentPayload(targetType, target, form);
       if (incident) {
         await incidentsApi.createEvent({
           ...incident,
@@ -235,7 +335,7 @@ const AuditsPage = () => {
       }
 
       setFeedback("Auditoria salva com sucesso.");
-      setAsset(null);
+      setTarget(null);
       setLookupValue("");
       setForm(auditDefaults);
     } catch (err) {
@@ -244,6 +344,8 @@ const AuditsPage = () => {
       setSaving(false);
     }
   };
+
+  const config = targetConfig[targetType];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -257,20 +359,28 @@ const AuditsPage = () => {
           </CardHeader>
 
           <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="w-full">
+              <FormField label="Tipo de auditoria">
+                <Select value={targetType} onChange={(event) => setTargetType(event.target.value)}>
+                  <option value="asset">Ativo</option>
+                  <option value="box">Carrinho</option>
+                  <option value="lab">Laboratório</option>
+                </Select>
+              </FormField>
+            </div>
+
             <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-dashed border-muted-foreground bg-muted">
               <Icon name="qr-code" className="h-10 w-10 text-muted-foreground" />
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Aponte a câmera para o QR Code do ativo ou cole manualmente o link, o ID ou a TAG.
-            </p>
+            <p className="text-sm text-muted-foreground">{config.lookupHint}</p>
 
             <div className="flex w-full flex-col gap-2 sm:flex-row">
               <Button className="w-full" type="button" onClick={() => setCameraOpen((current) => !current)}>
                 {cameraOpen ? "Fechar câmera" : "Abrir câmera"}
               </Button>
-              <Button className="w-full" variant="secondary" type="button" onClick={() => findAsset()}>
-                Buscar ativo
+              <Button className="w-full" variant="secondary" type="button" onClick={() => findTarget()}>
+                Buscar
               </Button>
             </div>
 
@@ -285,50 +395,43 @@ const AuditsPage = () => {
 
             <div className="flex w-full items-center gap-2 border-t pt-4">
               <Input
-                placeholder="Cole o link do QR, ID do ativo ou TAG..."
+                placeholder="Cole o link do QR, ID ou TAG..."
                 value={lookupValue}
                 onChange={(event) => setLookupValue(event.target.value)}
               />
-              <Button variant="secondary" type="button" onClick={() => findAsset()}>OK</Button>
+              <Button variant="secondary" type="button" onClick={() => findTarget()}>OK</Button>
             </div>
 
-            {loading ? <LoadingState label="Buscando ativo..." /> : null}
+            {loading ? <LoadingState label="Buscando item..." /> : null}
             {feedback ? <InlineMessage tone={feedback.includes("sucesso") ? "success" : "error"}>{feedback}</InlineMessage> : null}
           </CardContent>
         </Card>
 
-        <Card className={!asset ? "pointer-events-none opacity-50" : ""}>
+        <Card className={!target ? "pointer-events-none opacity-50" : ""}>
           <CardHeader className="border-b bg-muted/20">
-            <CardTitle>{asset ? `Inspeção ${asset.tag_code}` : "Inspeção"}</CardTitle>
+            <CardTitle>{target ? `${config.inspectTitle}: ${config.getName(target)}` : "Inspeção"}</CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-4 p-6">
-            {asset ? (
+            {target ? (
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-1 text-sm">
-                  <div className="font-medium">{asset.model}</div>
-                  <div className="text-muted-foreground">{asset.host_name || "Sem nome de máquina"}</div>
-                  <div className="text-muted-foreground">{asset.domain_name || "Sem domínio"}</div>
-                  <div className="text-muted-foreground">{asset.labs?.name || "Sem laboratório"}</div>
+                  <div className="font-medium">{config.getName(target)}</div>
+                  {config.getSecondary(target).map((line) => (
+                    <div key={line} className="text-muted-foreground">{line}</div>
+                  ))}
                 </div>
 
                 <FormField label="Status geral">
                   <Select name="status" value={form.status} onChange={handleChange}>
                     <option value="functioning_normally">Funcionando normalmente</option>
-                    <option value="functioning_with_issue">Funcionando com falha</option>
-                    <option value="not_functioning">Não está funcionando</option>
-                    <option value="missing">Extraviado</option>
+                    <option value="functioning_with_issue">Funcionando com ressalvas</option>
+                    <option value="not_functioning">Precisa de manutenção</option>
+                    <option value="missing">Indisponível</option>
                   </Select>
                 </FormField>
 
-                {[
-                  ["powers_on", "Liga"],
-                  ["internet_working", "Internet funcionando"],
-                  ["keyboard_ok", "Teclado OK"],
-                  ["mouse_ok", "Mouse OK"],
-                  ["monitor_ok", "Monitor OK"],
-                  ["no_physical_damage", "Sem dano físico"]
-                ].map(([name, label]) => (
+                {config.checks.map(([name, label]) => (
                   <FormField key={name} label={label}>
                     <Select value={String(form[name])} onChange={(event) => handleBooleanChange(name, event.target.value)}>
                       <option value="true">Sim</option>

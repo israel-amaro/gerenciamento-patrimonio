@@ -119,7 +119,9 @@ CREATE TABLE public.professor_lab_checklists (
 CREATE TABLE public.audits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   auditor_id UUID NOT NULL REFERENCES public.profiles(id),
-  asset_id UUID NOT NULL REFERENCES public.assets(id),
+  asset_id UUID REFERENCES public.assets(id),
+  box_id UUID REFERENCES public.boxes(id),
+  lab_id UUID REFERENCES public.labs(id),
   audited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   status TEXT NOT NULL CHECK (status IN ('functioning_normally', 'functioning_with_issue', 'not_functioning', 'missing')),
   powers_on BOOLEAN,
@@ -129,7 +131,10 @@ CREATE TABLE public.audits (
   monitor_ok BOOLEAN,
   no_physical_damage BOOLEAN,
   notes TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT audits_target_check CHECK (
+    ((asset_id IS NOT NULL)::INTEGER + (box_id IS NOT NULL)::INTEGER + (lab_id IS NOT NULL)::INTEGER) = 1
+  )
 );
 
 CREATE TABLE public.incidents (

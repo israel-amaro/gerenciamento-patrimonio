@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { Button, Card, CardContent, CardHeader, CardTitle, Icon, InlineMessage, Input, Select } from "../components/ui";
 import { openPrintLabelsDocument, openPrintTableDocument } from "../lib/reporting";
 import { reportsApi } from "../lib/api";
+import { ensureAssetQrUrl, ensureBoxQrUrl, ensureLabQrUrl } from "../lib/qr";
 import { formatDateTime } from "../lib/utils";
 
 const ReportsPage = () => {
@@ -194,7 +195,15 @@ const ReportsPage = () => {
       const labelsWithQr = await Promise.all(
         selectedLabels.map(async (label) => ({
           ...label,
-          qrPreview: label.qr_code_value ? await QRCode.toDataURL(label.qr_code_value, { margin: 1, width: 220 }) : ""
+          qrValue:
+            labelType === "assets"
+              ? ensureAssetQrUrl(label.qr_code_value, label.id)
+              : labelType === "boxes"
+                ? ensureBoxQrUrl(label.qr_code_value, label.id)
+                : ensureLabQrUrl(label.qr_code_value, label.id)
+        })).map(async (label) => ({
+          ...label,
+          qrPreview: label.qrValue ? await QRCode.toDataURL(label.qrValue, { margin: 1, width: 220 }) : ""
         }))
       );
 

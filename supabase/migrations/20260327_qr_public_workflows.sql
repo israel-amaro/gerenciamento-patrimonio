@@ -26,6 +26,15 @@ alter table public.incidents add constraint incidents_target_check check (
   ((asset_id is not null)::integer + (lab_id is not null)::integer + (box_id is not null)::integer) >= 1
 );
 
+alter table public.audits alter column asset_id drop not null;
+alter table public.audits add column if not exists box_id uuid references public.boxes(id);
+alter table public.audits add column if not exists lab_id uuid references public.labs(id);
+
+alter table public.audits drop constraint if exists audits_target_check;
+alter table public.audits add constraint audits_target_check check (
+  ((asset_id is not null)::integer + (box_id is not null)::integer + (lab_id is not null)::integer) = 1
+);
+
 create table if not exists public.box_checklists (
   id uuid primary key default gen_random_uuid(),
   box_id uuid not null references public.boxes(id) on delete cascade,
