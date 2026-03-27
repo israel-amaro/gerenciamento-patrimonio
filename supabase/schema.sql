@@ -31,6 +31,7 @@ CREATE TABLE public.labs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
   location TEXT,
+  qr_code_value TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -64,6 +65,9 @@ CREATE TABLE public.boxes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
   description TEXT,
+  qr_code_value TEXT UNIQUE,
+  lab_id UUID REFERENCES public.labs(id),
+  expected_asset_count INTEGER,
   status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'borrowed', 'maintenance')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -78,7 +82,9 @@ CREATE TABLE public.box_assets (
 
 CREATE TABLE public.loans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  box_id UUID NOT NULL REFERENCES public.boxes(id),
+  box_id UUID REFERENCES public.boxes(id),
+  asset_id UUID REFERENCES public.assets(id),
+  lab_id UUID REFERENCES public.labs(id),
   professor_id UUID REFERENCES public.profiles(id),
   responsible_name TEXT NOT NULL,
   room_id UUID NOT NULL REFERENCES public.rooms(id),
@@ -91,7 +97,10 @@ CREATE TABLE public.loans (
   created_by UUID REFERENCES auth.users(id),
   returned_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT loans_target_check CHECK (
+    ((box_id IS NOT NULL)::INTEGER + (asset_id IS NOT NULL)::INTEGER + (lab_id IS NOT NULL)::INTEGER) = 1
+  )
 );
 
 CREATE TABLE public.professor_lab_checklists (
@@ -471,6 +480,329 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.return_loan(p_loan_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_box_id UUID;
+BEGIN
+  SELECT box_id
+  INTO v_box_id
+  FROM public.loans
+  WHERE id = p_loan_id
+    AND status <> 'returned';
+
+  IF v_box_id IS NULL AND NOT EXISTS (
+    SELECT 1
+    FROM public.loans
+    WHERE id = p_loan_id
+      AND status <> 'returned'
+  ) THEN
+    RAISE EXCEPTION 'Emprestimo nao encontrado ou ja devolvido.';
+  END IF;
+
+  UPDATE public.loans
+  SET
+    status = 'returned',
+    returned_at = NOW(),
+    returned_by = auth.uid()
+  WHERE id = p_loan_id;
+
+  IF v_box_id IS NOT NULL THEN
+    UPDATE public.boxes
+    SET status = 'available'
+    WHERE id = v_box_id;
+  END IF;
+
+  RETURN p_loan_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_public_asset_context(p_asset_id UUID)
+RETURNS TABLE (
+  asset_id UUID,
+  tag_code TEXT,
+  qr_code_value TEXT,
+  serial_number TEXT,
+  host_name TEXT,
+  domain_name TEXT,
+  model TEXT,
+  asset_status TEXT,
+  lab_id UUID,
+  lab_name TEXT,
+  lab_location TEXT,
+  box_id UUID,
+  box_name TEXT,
+  box_status TEXT,
+  active_loan_id UUID,
+  loan_status TEXT,
+  borrowed_at TIMESTAMPTZ,
+  expected_return_at TIMESTAMPTZ,
+  responsible_name TEXT,
+  session_class TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    a.id AS asset_id,
+    a.tag_code,
+    a.qr_code_value,
+    a.serial_number,
+    a.host_name,
+    a.domain_name,
+    a.model,
+    a.status AS asset_status,
+    l.id AS lab_id,
+    l.name AS lab_name,
+    l.location AS lab_location,
+    b.id AS box_id,
+    b.name AS box_name,
+    b.status AS box_status,
+    COALESCE(al.id, bl.id) AS active_loan_id,
+    COALESCE(al.status, bl.status) AS loan_status,
+    COALESCE(al.borrowed_at, bl.borrowed_at) AS borrowed_at,
+    COALESCE(al.expected_return_at, bl.expected_return_at) AS expected_return_at,
+    COALESCE(al.responsible_name, bl.responsible_name) AS responsible_name,
+    COALESCE(al.session_class, bl.session_class) AS session_class
+  FROM public.assets a
+  LEFT JOIN public.labs l ON l.id = a.lab_id
+  LEFT JOIN public.box_assets ba ON ba.asset_id = a.id
+  LEFT JOIN public.boxes b ON b.id = ba.box_id
+  LEFT JOIN public.loans al ON al.asset_id = a.id AND al.status <> 'returned'
+  LEFT JOIN public.loans bl ON bl.box_id = b.id AND bl.status <> 'returned'
+  WHERE a.id = p_asset_id
+  LIMIT 1
+$$;
+
+CREATE OR REPLACE FUNCTION public.request_loan_by_asset(
+  p_asset_id UUID,
+  p_responsible_name TEXT,
+  p_room_id UUID,
+  p_session_class TEXT,
+  p_expected_return_at TIMESTAMPTZ,
+  p_notes TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_loan_id UUID;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.assets
+    WHERE id = p_asset_id
+  ) THEN
+    RAISE EXCEPTION 'Ativo nao encontrado.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.loans
+    WHERE asset_id = p_asset_id
+      AND status <> 'returned'
+  ) THEN
+    RAISE EXCEPTION 'Este ativo ja possui emprestimo em aberto.';
+  END IF;
+
+  IF COALESCE(BTRIM(p_responsible_name), '') = '' THEN
+    RAISE EXCEPTION 'Informe o responsavel.';
+  END IF;
+
+  IF COALESCE(BTRIM(p_session_class), '') = '' THEN
+    RAISE EXCEPTION 'Informe a turma ou disciplina.';
+  END IF;
+
+  INSERT INTO public.loans (
+    asset_id,
+    responsible_name,
+    room_id,
+    session_class,
+    expected_return_at,
+    notes,
+    status,
+    created_by
+  )
+  VALUES (
+    p_asset_id,
+    BTRIM(p_responsible_name),
+    p_room_id,
+    BTRIM(p_session_class),
+    p_expected_return_at,
+    NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
+    'active',
+    auth.uid()
+  )
+  RETURNING id INTO v_loan_id;
+
+  RETURN v_loan_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.request_loan_by_lab(
+  p_lab_id UUID,
+  p_responsible_name TEXT,
+  p_room_id UUID,
+  p_session_class TEXT,
+  p_expected_return_at TIMESTAMPTZ,
+  p_notes TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_loan_id UUID;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.labs
+    WHERE id = p_lab_id
+  ) THEN
+    RAISE EXCEPTION 'Laboratorio nao encontrado.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.loans
+    WHERE lab_id = p_lab_id
+      AND status <> 'returned'
+  ) THEN
+    RAISE EXCEPTION 'Este laboratorio ja possui emprestimo em aberto.';
+  END IF;
+
+  IF COALESCE(BTRIM(p_responsible_name), '') = '' THEN
+    RAISE EXCEPTION 'Informe o responsavel.';
+  END IF;
+
+  IF COALESCE(BTRIM(p_session_class), '') = '' THEN
+    RAISE EXCEPTION 'Informe a turma ou disciplina.';
+  END IF;
+
+  INSERT INTO public.loans (
+    lab_id,
+    responsible_name,
+    room_id,
+    session_class,
+    expected_return_at,
+    notes,
+    status,
+    created_by
+  )
+  VALUES (
+    p_lab_id,
+    BTRIM(p_responsible_name),
+    p_room_id,
+    BTRIM(p_session_class),
+    p_expected_return_at,
+    NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
+    'active',
+    auth.uid()
+  )
+  RETURNING id INTO v_loan_id;
+
+  RETURN v_loan_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_public_box_context(p_box_id UUID)
+RETURNS TABLE (
+  box_id UUID,
+  box_name TEXT,
+  box_description TEXT,
+  box_status TEXT,
+  qr_code_value TEXT,
+  lab_id UUID,
+  lab_name TEXT,
+  lab_location TEXT,
+  expected_asset_count INTEGER,
+  current_asset_count BIGINT,
+  is_complete BOOLEAN,
+  active_loan_id UUID,
+  loan_status TEXT,
+  borrowed_at TIMESTAMPTZ,
+  expected_return_at TIMESTAMPTZ,
+  responsible_name TEXT,
+  session_class TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    b.id AS box_id,
+    b.name AS box_name,
+    b.description AS box_description,
+    b.status AS box_status,
+    b.qr_code_value,
+    l.id AS lab_id,
+    l.name AS lab_name,
+    l.location AS lab_location,
+    b.expected_asset_count,
+    COUNT(ba.asset_id) AS current_asset_count,
+    CASE
+      WHEN b.expected_asset_count IS NULL THEN NULL
+      ELSE COUNT(ba.asset_id) = b.expected_asset_count
+    END AS is_complete,
+    ln.id AS active_loan_id,
+    ln.status AS loan_status,
+    ln.borrowed_at,
+    ln.expected_return_at,
+    ln.responsible_name,
+    ln.session_class
+  FROM public.boxes b
+  LEFT JOIN public.labs l ON l.id = b.lab_id
+  LEFT JOIN public.box_assets ba ON ba.box_id = b.id
+  LEFT JOIN public.loans ln ON ln.box_id = b.id AND ln.status <> 'returned'
+  WHERE b.id = p_box_id
+  GROUP BY b.id, l.id, ln.id
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_public_lab_context(p_lab_id UUID)
+RETURNS TABLE (
+  lab_id UUID,
+  lab_name TEXT,
+  lab_location TEXT,
+  qr_code_value TEXT,
+  asset_count BIGINT,
+  active_loan_id UUID,
+  loan_status TEXT,
+  borrowed_at TIMESTAMPTZ,
+  expected_return_at TIMESTAMPTZ,
+  responsible_name TEXT,
+  session_class TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    l.id AS lab_id,
+    l.name AS lab_name,
+    l.location AS lab_location,
+    l.qr_code_value,
+    COUNT(a.id) AS asset_count,
+    ln.id AS active_loan_id,
+    ln.status AS loan_status,
+    ln.borrowed_at,
+    ln.expected_return_at,
+    ln.responsible_name,
+    ln.session_class
+  FROM public.labs l
+  LEFT JOIN public.assets a ON a.lab_id = l.id
+  LEFT JOIN public.loans ln ON ln.lab_id = l.id AND ln.status <> 'returned'
+  WHERE l.id = p_lab_id
+  GROUP BY l.id, ln.id
+$$;
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.labs ENABLE ROW LEVEL SECURITY;
@@ -591,11 +923,17 @@ WITH CHECK (public.is_admin());
 
 GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_lab(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.return_loan(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_public_checklist(UUID, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_asset_context(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_box_context(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_lab_context(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_lab(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.return_loan(UUID) TO anon;
 GRANT EXECUTE ON FUNCTION public.submit_public_checklist(UUID, TEXT, TEXT, TEXT, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_asset_context(UUID) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_public_box_context(UUID) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_public_lab_context(UUID) TO anon;

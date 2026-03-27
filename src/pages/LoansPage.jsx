@@ -28,11 +28,16 @@ const LoansPage = () => {
 
   const loans = useAsyncData(() => loansApi.list(search), [search]);
   const lookups = useAsyncData(async () => {
-    const [boxes, rooms] = await Promise.all([lookupApi.boxes(), lookupApi.rooms()]);
-    return { boxes, rooms };
+    const [boxes, rooms, assets, labs] = await Promise.all([lookupApi.boxes(), lookupApi.rooms(), lookupApi.assets(), lookupApi.labs()]);
+    return { boxes, rooms, assets, labs };
   }, []);
 
   const getBoxName = (boxId) => lookups.data?.boxes.find((box) => box.id === boxId)?.name || boxId;
+  const getAssetName = (assetId) => {
+    const asset = lookups.data?.assets.find((item) => item.id === assetId);
+    return asset ? `${asset.tag_code} - ${asset.model}` : assetId;
+  };
+  const getLabName = (labId) => lookups.data?.labs.find((lab) => lab.id === labId)?.name || labId;
   const getRoomName = (roomId) => lookups.data?.rooms.find((room) => room.id === roomId)?.name || roomId;
 
   const handleChange = (event) => {
@@ -149,7 +154,7 @@ const LoansPage = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Caixa</th>
+                  <th>Item</th>
                   <th>Professor</th>
                   <th>Local/Turma</th>
                   <th>Retirada</th>
@@ -160,7 +165,9 @@ const LoansPage = () => {
               <tbody>
                 {loans.data.map((loan) => (
                   <tr key={loan.id} className="hover:bg-muted/50">
-                    <td className="font-medium">{getBoxName(loan.box_id)}</td>
+                    <td className="font-medium">
+                      {loan.box_id ? getBoxName(loan.box_id) : loan.lab_id ? getLabName(loan.lab_id) : getAssetName(loan.asset_id)}
+                    </td>
                     <td>{loan.responsible_name}</td>
                     <td className="text-muted-foreground">{getRoomName(loan.room_id)} / {loan.session_class}</td>
                     <td>{formatDateTime(loan.borrowed_at)}</td>

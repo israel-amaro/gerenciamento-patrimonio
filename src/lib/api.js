@@ -37,7 +37,7 @@ export const lookupApi = {
   labs: () => unwrap(supabase.from("labs").select("*").order("name")),
   rooms: () => unwrap(supabase.from("rooms").select("*").order("name")),
   profiles: () => unwrap(supabase.from("profiles").select("id, full_name, email, role").order("full_name")),
-  assets: () => unwrap(supabase.from("assets").select("id, tag_code, model, status").order("tag_code")),
+  assets: () => unwrap(supabase.from("assets").select("id, tag_code, model, status, lab_id").order("tag_code")),
   boxes: () => unwrap(supabase.from("boxes").select("id, name, status").order("name"))
 };
 
@@ -66,7 +66,7 @@ export const boxesApi = {
   list(search = "") {
     let query = supabase
       .from("boxes")
-      .select("*, box_assets(asset_id, assets(id, tag_code, model))")
+      .select("*, labs(id, name, location), box_assets(asset_id, assets(id, tag_code, model))")
       .order("created_at", { ascending: false });
 
     if (search) {
@@ -96,7 +96,7 @@ export const loansApi = {
   list(search = "") {
     let query = supabase
       .from("loans")
-      .select("id, box_id, room_id, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
+      .select("id, box_id, asset_id, lab_id, room_id, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
       .order("borrowed_at", { ascending: false });
 
     if (search) {
@@ -209,14 +209,20 @@ export const reportsApi = {
     )
 };
 
-export const publicAssetsApi = {
-  getContext(assetId) {
+export const publicScanApi = {
+  getAssetContext(assetId) {
     return unwrap(supabase.rpc("get_public_asset_context", { p_asset_id: assetId }).maybeSingle());
   },
-  requestLoanByAsset(payload) {
+  getBoxContext(boxId) {
+    return unwrap(supabase.rpc("get_public_box_context", { p_box_id: boxId }).maybeSingle());
+  },
+  getLabContext(labId) {
+    return unwrap(supabase.rpc("get_public_lab_context", { p_lab_id: labId }).maybeSingle());
+  },
+  requestLoanByBox(payload) {
     return unwrap(
-      supabase.rpc("request_loan_by_asset", {
-        p_asset_id: payload.asset_id,
+      supabase.rpc("request_loan", {
+        p_box_id: payload.box_id,
         p_responsible_name: payload.responsible_name,
         p_room_id: payload.room_id,
         p_session_class: payload.session_class,
@@ -224,5 +230,60 @@ export const publicAssetsApi = {
         p_notes: payload.notes
       })
     );
+  },
+  requestLoanByLab(payload) {
+    return unwrap(
+      supabase.rpc("request_loan_by_lab", {
+        p_lab_id: payload.lab_id,
+        p_responsible_name: payload.responsible_name,
+        p_room_id: payload.room_id,
+        p_session_class: payload.session_class,
+        p_expected_return_at: payload.expected_return_at,
+        p_notes: payload.notes
+      })
+    );
+  },
+  submitBoxChecklist(payload) {
+    return unwrap(
+      supabase.rpc("submit_public_box_checklist", {
+        p_box_id: payload.box_id,
+        p_loan_id: payload.loan_id,
+        p_responsible_name: payload.responsible_name,
+        p_session_class: payload.session_class,
+        p_stage: payload.stage,
+        p_status: payload.status,
+        p_notes: payload.notes
+      })
+    );
+  }
+};
+
+export const labsApi = {
+  list(search = "") {
+    let query = supabase
+      .from("labs")
+      .select("*, assets(id)")
+      .order("name");
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,location.ilike.%${search}%`);
+    }
+
+    return unwrap(query);
+  },
+  async create({ assetIds = [], ...payload }) {
+    const lab = await unwrap(supabase.from("labs").insert(payload).select("id").single());
+    if (assetIds.length) {
+      await unwrap(supabase.from("assets").update({ lab_id: lab.id }).in("id", assetIds));
+    }
+    return lab;
+  },
+  async update(id, { assetIds = [], ...payload }) {
+    await unwrap(supabase.from("labs").update(payload).eq("id", id).select("id").single());
+    await unwrap(supabase.from("assets").update({ lab_id: null }).eq("lab_id", id));
+    if (assetIds.length) {
+      await unwrap(supabase.from("assets").update({ lab_id: id }).in("id", assetIds));
+    }
+    return { id };
   }
 };

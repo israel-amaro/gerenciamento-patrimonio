@@ -7,7 +7,8 @@ import { cn } from "../lib/utils";
 const items = [
   { label: "Dashboard", path: "/app/dashboard", icon: "layout-dashboard", roles: ["admin"] },
   { label: "Ativos", path: "/app/assets", icon: "laptop", roles: ["admin"] },
-  { label: "Caixas", path: "/app/boxes", icon: "package", roles: ["admin"] },
+  { label: "Carrinhos", path: "/app/boxes", icon: "package", roles: ["admin"] },
+  { label: "Laboratorios", path: "/app/labs", icon: "clipboard-check", roles: ["admin"] },
   { label: "Empréstimos", path: "/app/loans", icon: "arrow-right-left" },
   { label: "Checklist Rápido", path: "/app/checklists", icon: "clipboard-check" },
   { label: "Auditoria Tech", path: "/app/audits", icon: "scan-line", roles: ["admin"] },

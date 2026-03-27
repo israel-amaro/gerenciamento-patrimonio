@@ -3,14 +3,7 @@ import QRCode from "qrcode";
 import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState, Select } from "../components/ui";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { assetsApi, lookupApi } from "../lib/api";
-
-const buildQrCodeUrl = (assetId) => {
-  if (typeof window === "undefined") {
-    return `/scan/${assetId}`;
-  }
-
-  return `${window.location.origin}/scan/${assetId}`;
-};
+import { buildAssetQrUrl } from "../lib/qr";
 
 const createInitialForm = () => {
   const id = crypto.randomUUID();
@@ -19,7 +12,7 @@ const createInitialForm = () => {
     id,
     type_id: "",
     tag_code: "",
-    qr_code_value: buildQrCodeUrl(id),
+    qr_code_value: buildAssetQrUrl(id),
     serial_number: "",
     host_name: "",
     domain_name: "",
@@ -113,7 +106,7 @@ const AssetsPage = () => {
       id: asset.id,
       type_id: asset.type_id || "",
       tag_code: asset.tag_code || "",
-      qr_code_value: asset.qr_code_value || buildQrCodeUrl(asset.id),
+      qr_code_value: asset.qr_code_value || buildAssetQrUrl(asset.id),
       serial_number: asset.serial_number || "",
       host_name: asset.host_name || "",
       domain_name: asset.domain_name || "",
