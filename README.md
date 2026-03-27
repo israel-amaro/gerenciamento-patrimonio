@@ -1,12 +1,20 @@
 # EquipControl
 
-Sistema de controle patrimonial para instituições de ensino, agora em estrutura local com Vite, React modular e integração real com Supabase.
+Sistema de controle patrimonial para instituições de ensino, com foco em ativos, carrinhos, laboratórios, empréstimos, auditorias técnicas, QR Codes públicos e relatórios administrativos.
 
 ## Stack
 - React 19
 - Vite 5
-- Tailwind CSS local
-- Supabase Auth + Database
+- Tailwind CSS
+- Supabase Auth + Postgres
+
+## Estrutura do projeto
+- `src/pages`: telas administrativas e páginas públicas de QR
+- `src/lib`: integração com Supabase, geração de QR e utilitários de impressão
+- `src/components`: componentes base da interface
+- `supabase/schema.sql`: estrutura principal do banco
+- `supabase/migrations/20260327_qr_public_workflows.sql`: ajustes de QR público, incidentes, checklists e relatórios
+- `supabase/reset_for_production.sql`: limpeza completa dos dados para entrada em produção
 
 ## Executar localmente
 1. Instale as dependências:
@@ -20,47 +28,47 @@ Sistema de controle patrimonial para instituições de ensino, agora em estrutur
 3. Preencha `.env` com:
    ```env
    VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-   VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
+   VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON_PUBLICA
    ```
-4. No Supabase, rode `supabase/schema.sql` e depois `supabase/seed.sql` no SQL Editor.
+4. No Supabase, rode nesta ordem:
+   ```text
+   supabase/schema.sql
+   supabase/migrations/20260327_qr_public_workflows.sql
+   supabase/seed.sql
+   ```
 5. Inicie o ambiente local:
    ```bash
    npm run dev
    ```
-6. Acesse `http://localhost:5173`.
+6. Acesse `http://localhost:5173`
 
-## Deploy na Vercel
-1. Importe o repositório na Vercel.
-2. Framework preset: `Vite`.
-3. Build command:
+## Implantação na empresa
+1. Execute `supabase/reset_for_production.sql` no banco que hoje está com dados de teste.
+2. Se quiser apagar também os usuários de autenticação, rode separadamente:
+   ```sql
+   delete from auth.users;
+   ```
+3. Reimporte somente os dados reais da empresa.
+4. Configure na hospedagem as variáveis:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+5. Gere o build:
    ```bash
    npm run build
    ```
-4. Output directory:
-   ```bash
-   dist
-   ```
-5. Configure as variáveis:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-6. O arquivo `vercel.json` já faz o rewrite necessário para o React Router.
 
-## Supabase
-- O frontend usa apenas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-- O cadastro cria perfil automaticamente na tabela `profiles`.
-- Novos usuários entram como `professor` por padrão.
-- Para promover um usuário para `admin` ou `technician`, rode algo como:
-  ```sql
-  update public.profiles
-  set role = 'admin'
-  where email = 'admin@seudominio.com';
-  ```
+## Observações de segurança
+- O arquivo `.env` está no `.gitignore` e não deve ser versionado.
+- A chave `VITE_SUPABASE_ANON_KEY` é pública por natureza, mas ainda assim deve ficar fora do repositório.
+- Se a chave atual já foi exposta fora do ambiente controlado, o ideal é gerar uma nova no Supabase antes do go-live.
 
-## Funcionalidades implementadas
-- Autenticação com login, cadastro, persistência de sessão e logout.
-- Rotas protegidas e bloqueio por papel para telas administrativas.
-- Dashboard com métricas reais.
-- CRUD funcional de ativos, caixas, empréstimos e incidentes.
-- Checklist e auditoria com gravação real no Supabase.
-- Estados de carregamento, erro, vazio e validação básica.
-- Exportação CSV de ativos.
+## Funcionalidades principais
+- Cadastro e gestão de ativos, carrinhos e laboratórios
+- QR individual para consulta e auditoria de ativo
+- QR público para empréstimo e devolução de carrinhos e laboratórios
+- Checklists rápidos públicos
+- Auditoria técnica com geração automática de incidentes
+- Tela administrativa de defeitos com detalhamento
+- Histórico de movimentação
+- Relatórios em PDF por período
+- Impressão de etiquetas com QR Code
