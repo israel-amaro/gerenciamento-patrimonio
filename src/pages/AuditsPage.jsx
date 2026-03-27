@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import QrScanner from "qr-scanner";
+import qrScannerWorkerPath from "qr-scanner/qr-scanner-worker.min?url";
 import { useParams } from "react-router-dom";
 import { Button, Card, CardContent, CardHeader, CardTitle, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
 import { auditsApi, incidentsApi } from "../lib/api";
+
+QrScanner.WORKER_PATH = qrScannerWorkerPath;
 
 const auditDefaults = {
   status: "functioning_normally",
@@ -70,12 +74,24 @@ const buildAuditIncident = (asset, form) => {
 const AuditsPage = () => {
   const { assetId } = useParams();
   const { profile } = useAuth();
+  const videoRef = useRef(null);
+  const scannerRef = useRef(null);
   const [lookupValue, setLookupValue] = useState(assetId || "");
   const [asset, setAsset] = useState(null);
   const [form, setForm] = useState(auditDefaults);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      await scannerRef.current.stop();
+      scannerRef.current.destroy();
+      scannerRef.current = null;
+    }
+  };
 
   const findAsset = async (reference = lookupValue) => {
     const trimmedReference = reference.trim();
@@ -128,6 +144,59 @@ const AuditsPage = () => {
     findAsset(assetId);
   }, [assetId]);
 
+  useEffect(() => {
+    let active = true;
+
+    const startScanner = async () => {
+      if (!cameraOpen || !videoRef.current) {
+        return;
+      }
+
+      setCameraLoading(true);
+      setFeedback("");
+
+      try {
+        const scanner = new QrScanner(
+          videoRef.current,
+          async (result) => {
+            if (!active) {
+              return;
+            }
+
+            const scannedValue = result?.data || "";
+            setLookupValue(scannedValue);
+            setCameraOpen(false);
+            await stopScanner();
+            await findAsset(scannedValue);
+          },
+          {
+            preferredCamera: "environment",
+            returnDetailedScanResult: true,
+            highlightScanRegion: true,
+            highlightCodeOutline: true
+          }
+        );
+
+        scannerRef.current = scanner;
+        await scanner.start();
+      } catch (err) {
+        setCameraOpen(false);
+        setFeedback("Não foi possível acessar a câmera. Verifique a permissão do navegador.");
+      } finally {
+        if (active) {
+          setCameraLoading(false);
+        }
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      active = false;
+      stopScanner();
+    };
+  }, [cameraOpen]);
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
@@ -177,23 +246,44 @@ const AuditsPage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Auditoria técnica com QR Code</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader className="border-b bg-muted/20 flex flex-row items-center gap-2">
-            <Icon name="scan-line" className="text-primary mt-1" />
-            <CardTitle>Scanner</CardTitle>
+          <CardHeader className="flex flex-row items-center gap-2 border-b bg-muted/20">
+            <Icon name="scan-line" className="mt-1 text-primary" />
+            <CardTitle>Leitura do QR</CardTitle>
           </CardHeader>
-          <CardContent className="p-8 text-center flex flex-col items-center gap-4">
-            <div className="h-24 w-24 bg-muted rounded-full flex items-center justify-center border-4 border-dashed border-muted-foreground">
-              <Icon name="qr-code" className="w-10 h-10 text-muted-foreground" />
+
+          <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-dashed border-muted-foreground bg-muted">
+              <Icon name="qr-code" className="h-10 w-10 text-muted-foreground" />
             </div>
+
             <p className="text-sm text-muted-foreground">
-              Escaneie o link do QR ou cole aqui a URL gerada no cadastro do ativo.
+              Aponte a câmera para o QR Code do ativo ou cole manualmente o link, o ID ou a TAG.
             </p>
-            <Button className="w-full" type="button" disabled>Abrir Camera</Button>
-            <div className="flex w-full items-center gap-2 pt-4 border-t">
+
+            <div className="flex w-full flex-col gap-2 sm:flex-row">
+              <Button className="w-full" type="button" onClick={() => setCameraOpen((current) => !current)}>
+                {cameraOpen ? "Fechar câmera" : "Abrir câmera"}
+              </Button>
+              <Button className="w-full" variant="secondary" type="button" onClick={() => findAsset()}>
+                Buscar ativo
+              </Button>
+            </div>
+
+            {cameraOpen ? (
+              <div className="w-full rounded-lg border bg-black p-2">
+                <video ref={videoRef} className="aspect-[4/3] w-full rounded-md object-cover" muted playsInline />
+                <div className="mt-2 text-sm text-white/80">
+                  {cameraLoading ? "Iniciando câmera..." : "Posicione o QR dentro da área da câmera."}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex w-full items-center gap-2 border-t pt-4">
               <Input
                 placeholder="Cole o link do QR, ID do ativo ou TAG..."
                 value={lookupValue}
@@ -201,24 +291,27 @@ const AuditsPage = () => {
               />
               <Button variant="secondary" type="button" onClick={() => findAsset()}>OK</Button>
             </div>
+
             {loading ? <LoadingState label="Buscando ativo..." /> : null}
             {feedback ? <InlineMessage tone={feedback.includes("sucesso") ? "success" : "error"}>{feedback}</InlineMessage> : null}
           </CardContent>
         </Card>
 
-        <Card className={!asset ? "opacity-50 pointer-events-none" : ""}>
+        <Card className={!asset ? "pointer-events-none opacity-50" : ""}>
           <CardHeader className="border-b bg-muted/20">
-            <CardTitle>{asset ? `Inspecao ${asset.tag_code}` : "Inspecao"}</CardTitle>
+            <CardTitle>{asset ? `Inspeção ${asset.tag_code}` : "Inspeção"}</CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-4">
+
+          <CardContent className="space-y-4 p-6">
             {asset ? (
               <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="text-sm space-y-1">
+                <div className="space-y-1 text-sm">
                   <div className="font-medium">{asset.model}</div>
                   <div className="text-muted-foreground">{asset.host_name || "Sem nome de máquina"}</div>
                   <div className="text-muted-foreground">{asset.domain_name || "Sem domínio"}</div>
                   <div className="text-muted-foreground">{asset.labs?.name || "Sem laboratório"}</div>
                 </div>
+
                 <FormField label="Status geral">
                   <Select name="status" value={form.status} onChange={handleChange}>
                     <option value="functioning_normally">Funcionando normalmente</option>
@@ -227,6 +320,7 @@ const AuditsPage = () => {
                     <option value="missing">Extraviado</option>
                   </Select>
                 </FormField>
+
                 {[
                   ["powers_on", "Liga"],
                   ["internet_working", "Internet funcionando"],
@@ -242,13 +336,17 @@ const AuditsPage = () => {
                     </Select>
                   </FormField>
                 ))}
+
                 <FormField label="Observações">
                   <Textarea name="notes" value={form.notes} onChange={handleChange} />
                 </FormField>
-                <Button type="submit" className="w-full" disabled={saving}>{saving ? "Salvando..." : "Salvar auditoria"}</Button>
+
+                <Button type="submit" className="w-full" disabled={saving}>
+                  {saving ? "Salvando..." : "Salvar auditoria"}
+                </Button>
               </form>
             ) : (
-              <div className="text-sm">Aguardando escaneamento...</div>
+              <div className="text-sm text-muted-foreground">Aguardando leitura do QR Code...</div>
             )}
           </CardContent>
         </Card>

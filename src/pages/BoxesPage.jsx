@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState, Select } from "../components/ui";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { boxesApi, lookupApi } from "../lib/api";
-import { buildBoxQrUrl } from "../lib/qr";
+import { buildBoxQrUrl, ensureBoxQrUrl } from "../lib/qr";
 
 const createInitialForm = () => {
   const id = crypto.randomUUID();
@@ -99,7 +99,7 @@ const BoxesPage = () => {
       id: box.id,
       name: box.name,
       description: box.description || "",
-      qr_code_value: box.qr_code_value || buildBoxQrUrl(box.id),
+      qr_code_value: ensureBoxQrUrl(box.qr_code_value, box.id),
       expected_asset_count: box.expected_asset_count || "",
       status: box.status,
       assetIds: box.box_assets?.map((item) => item.asset_id) || []

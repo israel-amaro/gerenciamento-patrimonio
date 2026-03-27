@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState } from "../components/ui";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { labsApi, lookupApi } from "../lib/api";
-import { buildLabQrUrl } from "../lib/qr";
+import { buildLabQrUrl, ensureLabQrUrl } from "../lib/qr";
 
 const createInitialForm = () => {
   const id = crypto.randomUUID();
@@ -88,7 +88,7 @@ const LabsPage = () => {
       id: lab.id,
       name: lab.name,
       location: lab.location || "",
-      qr_code_value: lab.qr_code_value || buildLabQrUrl(lab.id),
+      qr_code_value: ensureLabQrUrl(lab.qr_code_value, lab.id),
       assetIds: lab.assets?.map((asset) => asset.id) || []
     });
     setIsEditing(true);

@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState, Select } from "../components/ui";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { assetsApi, lookupApi } from "../lib/api";
-import { buildAssetQrUrl } from "../lib/qr";
+import { buildAssetQrUrl, ensureAssetQrUrl } from "../lib/qr";
 
 const createInitialForm = () => {
   const id = crypto.randomUUID();
@@ -106,7 +106,7 @@ const AssetsPage = () => {
       id: asset.id,
       type_id: asset.type_id || "",
       tag_code: asset.tag_code || "",
-      qr_code_value: asset.qr_code_value || buildAssetQrUrl(asset.id),
+      qr_code_value: ensureAssetQrUrl(asset.qr_code_value, asset.id),
       serial_number: asset.serial_number || "",
       host_name: asset.host_name || "",
       domain_name: asset.domain_name || "",
