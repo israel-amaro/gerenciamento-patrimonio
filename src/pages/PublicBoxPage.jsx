@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
-import { loansApi, lookupApi, publicScanApi } from "../lib/api";
+import { incidentsApi, loansApi, lookupApi, publicScanApi } from "../lib/api";
 import { formatDateTime } from "../lib/utils";
 
 const checklistOptions = [
@@ -129,6 +129,17 @@ const PublicBoxPage = () => {
         notes: borrowForm.checklist_notes.trim() || null
       });
 
+      if (borrowForm.checklist_status === "has_issues") {
+        await incidentsApi.createEvent({
+          box_id: context.box_id,
+          title: `Problema reportado na retirada do carrinho ${context.box_name}`,
+          description: borrowForm.checklist_notes.trim() || "Checklist de retirada registrou problemas no carrinho.",
+          severity: "medium",
+          source: "return_flow",
+          source_reference_id: loanId
+        });
+      }
+
       setBorrowForm(createBorrowForm());
       setFeedback("Retirada do carrinho registrada com sucesso.");
       await loadContext();
@@ -158,6 +169,17 @@ const PublicBoxPage = () => {
         status: returnForm.checklist_status,
         notes: returnForm.checklist_notes.trim() || null
       });
+
+      if (returnForm.checklist_status === "has_issues") {
+        await incidentsApi.createEvent({
+          box_id: context.box_id,
+          title: `Problema reportado na devolucao do carrinho ${context.box_name}`,
+          description: returnForm.checklist_notes.trim() || "Checklist de devolucao registrou problemas no carrinho.",
+          severity: "medium",
+          source: "return_flow",
+          source_reference_id: context.active_loan_id
+        });
+      }
 
       await loansApi.markReturned(context.active_loan_id);
 

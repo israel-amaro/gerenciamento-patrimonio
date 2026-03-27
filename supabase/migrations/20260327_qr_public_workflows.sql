@@ -16,6 +16,16 @@ alter table public.loans add constraint loans_target_check check (
   ((box_id is not null)::integer + (asset_id is not null)::integer + (lab_id is not null)::integer) = 1
 );
 
+alter table public.incidents alter column asset_id drop not null;
+alter table public.incidents alter column reported_by drop not null;
+alter table public.incidents add column if not exists lab_id uuid references public.labs(id);
+alter table public.incidents add column if not exists box_id uuid references public.boxes(id);
+
+alter table public.incidents drop constraint if exists incidents_target_check;
+alter table public.incidents add constraint incidents_target_check check (
+  ((asset_id is not null)::integer + (lab_id is not null)::integer + (box_id is not null)::integer) >= 1
+);
+
 create table if not exists public.box_checklists (
   id uuid primary key default gen_random_uuid(),
   box_id uuid not null references public.boxes(id) on delete cascade,
@@ -40,6 +50,9 @@ drop policy if exists "box_checklists_write_public" on public.box_checklists;
 create policy "box_checklists_write_public"
 on public.box_checklists for insert to authenticated, anon
 with check (true);
+
+grant select, insert on table public.box_checklists to authenticated;
+grant select, insert on table public.box_checklists to anon;
 
 create or replace function public.return_loan(p_loan_id uuid)
 returns uuid
@@ -138,6 +151,63 @@ as $$
   left join public.loans bl on bl.box_id = b.id and bl.status <> 'returned'
   where a.id = p_asset_id
   limit 1
+$$;
+
+create or replace function public.create_incident_event(
+  p_asset_id uuid default null,
+  p_lab_id uuid default null,
+  p_box_id uuid default null,
+  p_reported_by uuid default null,
+  p_title text default null,
+  p_description text default null,
+  p_severity text default 'medium',
+  p_source text default 'manual',
+  p_source_reference_id uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_incident_id uuid;
+begin
+  if ((p_asset_id is not null)::integer + (p_lab_id is not null)::integer + (p_box_id is not null)::integer) = 0 then
+    raise exception 'Informe ao menos um alvo para o incidente.';
+  end if;
+
+  if coalesce(btrim(p_title), '') = '' then
+    raise exception 'Informe o titulo do incidente.';
+  end if;
+
+  insert into public.incidents (
+    asset_id,
+    lab_id,
+    box_id,
+    reported_by,
+    title,
+    description,
+    severity,
+    status,
+    source,
+    source_reference_id
+  )
+  values (
+    p_asset_id,
+    p_lab_id,
+    p_box_id,
+    p_reported_by,
+    btrim(p_title),
+    nullif(btrim(coalesce(p_description, '')), ''),
+    p_severity,
+    'open',
+    p_source,
+    p_source_reference_id
+  )
+  returning id into v_incident_id;
+
+  return v_incident_id;
+end;
 $$;
 
 create or replace function public.request_loan_by_asset(
@@ -429,6 +499,8 @@ grant execute on function public.request_loan_by_asset(uuid, text, uuid, text, t
 grant execute on function public.request_loan_by_asset(uuid, text, uuid, text, timestamptz, text) to anon;
 grant execute on function public.request_loan_by_lab(uuid, text, uuid, text, timestamptz, text) to authenticated;
 grant execute on function public.request_loan_by_lab(uuid, text, uuid, text, timestamptz, text) to anon;
+grant execute on function public.create_incident_event(uuid, uuid, uuid, uuid, text, text, text, text, uuid) to authenticated;
+grant execute on function public.create_incident_event(uuid, uuid, uuid, uuid, text, text, text, text, uuid) to anon;
 grant execute on function public.get_public_asset_context(uuid) to authenticated;
 grant execute on function public.get_public_asset_context(uuid) to anon;
 grant execute on function public.get_public_box_context(uuid) to authenticated;

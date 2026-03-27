@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
-import { checklistsApi, loansApi, lookupApi, publicScanApi } from "../lib/api";
+import { checklistsApi, incidentsApi, loansApi, lookupApi, publicScanApi } from "../lib/api";
 import { formatDateTime } from "../lib/utils";
 
 const checklistOptions = [
@@ -122,13 +122,24 @@ const PublicLabPage = () => {
         notes: borrowForm.notes.trim() || null
       });
 
-      await checklistsApi.create({
+      const checklistId = await checklistsApi.create({
         lab_id: context.lab_id,
         responsible_name: borrowForm.responsible_name.trim(),
         session_class: borrowForm.session_class.trim(),
         status: borrowForm.checklist_status,
         notes: buildChecklistNotes({ stage: "RETIRADA", context, notes: borrowForm.checklist_notes })
       });
+
+      if (borrowForm.checklist_status === "has_issues") {
+        await incidentsApi.createEvent({
+          lab_id: context.lab_id,
+          title: `Problema reportado na retirada do laboratorio ${context.lab_name}`,
+          description: borrowForm.checklist_notes.trim() || "Checklist de retirada registrou problemas no laboratorio.",
+          severity: "medium",
+          source: "professor_checklist",
+          source_reference_id: checklistId
+        });
+      }
 
       setBorrowForm(createBorrowForm());
       setFeedback("Uso do laboratorio registrado com sucesso.");
@@ -152,13 +163,24 @@ const PublicLabPage = () => {
 
       await loansApi.markReturned(context.active_loan_id);
 
-      await checklistsApi.create({
+      const checklistId = await checklistsApi.create({
         lab_id: context.lab_id,
         responsible_name: returnForm.responsible_name.trim(),
         session_class: returnForm.session_class.trim(),
         status: returnForm.checklist_status,
         notes: buildChecklistNotes({ stage: "DEVOLUCAO", context, notes: returnForm.checklist_notes })
       });
+
+      if (returnForm.checklist_status === "has_issues") {
+        await incidentsApi.createEvent({
+          lab_id: context.lab_id,
+          title: `Problema reportado na devolucao do laboratorio ${context.lab_name}`,
+          description: returnForm.checklist_notes.trim() || "Checklist de devolucao registrou problemas no laboratorio.",
+          severity: "medium",
+          source: "return_flow",
+          source_reference_id: checklistId
+        });
+      }
 
       setFeedback("Devolucao do laboratorio registrada com sucesso.");
       await loadContext();

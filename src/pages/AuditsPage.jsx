@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button, Card, CardContent, CardHeader, CardTitle, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
-import { auditsApi } from "../lib/api";
+import { auditsApi, incidentsApi } from "../lib/api";
 
 const auditDefaults = {
   status: "functioning_normally",
@@ -37,6 +37,34 @@ const extractAssetId = (value) => {
     const match = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
     return match?.[0] || "";
   }
+};
+
+const buildAuditIncident = (asset, form) => {
+  const issues = [];
+
+  if (form.status !== "functioning_normally") {
+    issues.push(`Status: ${form.status}`);
+  }
+
+  if (!form.powers_on) issues.push("Nao liga");
+  if (!form.internet_working) issues.push("Internet indisponivel");
+  if (!form.keyboard_ok) issues.push("Teclado com problema");
+  if (!form.mouse_ok) issues.push("Mouse com problema");
+  if (!form.monitor_ok) issues.push("Monitor com problema");
+  if (!form.no_physical_damage) issues.push("Dano fisico identificado");
+  if (form.notes.trim()) issues.push(form.notes.trim());
+
+  if (!issues.length) {
+    return null;
+  }
+
+  return {
+    asset_id: asset.id,
+    title: `Falha identificada na auditoria do ativo ${asset.tag_code}`,
+    description: issues.join(" | "),
+    severity: form.status === "not_functioning" || form.status === "missing" ? "high" : "medium",
+    source: "audit"
+  };
 };
 
 const AuditsPage = () => {
@@ -115,7 +143,7 @@ const AuditsPage = () => {
     setSaving(true);
 
     try {
-      await auditsApi.create({
+      const audit = await auditsApi.create({
         auditor_id: profile.id,
         asset_id: asset.id,
         status: form.status,
@@ -127,6 +155,15 @@ const AuditsPage = () => {
         no_physical_damage: form.no_physical_damage,
         notes: form.notes.trim() || null
       });
+
+      const incident = buildAuditIncident(asset, form);
+      if (incident) {
+        await incidentsApi.createEvent({
+          ...incident,
+          reported_by: profile.id,
+          source_reference_id: audit.id
+        });
+      }
 
       setFeedback("Auditoria salva com sucesso.");
       setAsset(null);

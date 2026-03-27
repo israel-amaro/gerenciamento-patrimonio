@@ -93,7 +93,8 @@ export const boxesApi = {
 };
 
 export const loansApi = {
-  list(search = "") {
+  list(filters = {}) {
+    const { search = "", dateFrom = "", dateTo = "", targetType = "" } = typeof filters === "string" ? { search: filters } : filters;
     let query = supabase
       .from("loans")
       .select("id, box_id, asset_id, lab_id, room_id, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
@@ -101,6 +102,22 @@ export const loansApi = {
 
     if (search) {
       query = query.or(`session_class.ilike.%${search}%`);
+    }
+
+    if (dateFrom) {
+      query = query.gte("borrowed_at", `${dateFrom}T00:00:00`);
+    }
+
+    if (dateTo) {
+      query = query.lte("borrowed_at", `${dateTo}T23:59:59`);
+    }
+
+    if (targetType === "box") {
+      query = query.not("box_id", "is", null);
+    } else if (targetType === "asset") {
+      query = query.not("asset_id", "is", null);
+    } else if (targetType === "lab") {
+      query = query.not("lab_id", "is", null);
     }
 
     return unwrap(query);
@@ -179,14 +196,23 @@ export const auditsApi = {
 };
 
 export const incidentsApi = {
-  list(search = "") {
+  list(filters = {}) {
+    const { search = "", dateFrom = "", dateTo = "" } = typeof filters === "string" ? { search: filters } : filters;
     let query = supabase
       .from("incidents")
-      .select("*, assets(id, tag_code), profiles(id, full_name)")
+      .select("*, assets(id, tag_code), labs(id, name), boxes(id, name), profiles(id, full_name)")
       .order("created_at", { ascending: false });
 
     if (search) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    if (dateFrom) {
+      query = query.gte("created_at", `${dateFrom}T00:00:00`);
+    }
+
+    if (dateTo) {
+      query = query.lte("created_at", `${dateTo}T23:59:59`);
     }
 
     return unwrap(query);
@@ -194,19 +220,116 @@ export const incidentsApi = {
   create(payload) {
     return unwrap(supabase.from("incidents").insert(payload).select("id").single());
   },
+  createEvent(payload) {
+    return unwrap(
+      supabase.rpc("create_incident_event", {
+        p_asset_id: payload.asset_id ?? null,
+        p_lab_id: payload.lab_id ?? null,
+        p_box_id: payload.box_id ?? null,
+        p_reported_by: payload.reported_by ?? null,
+        p_title: payload.title,
+        p_description: payload.description ?? null,
+        p_severity: payload.severity ?? "medium",
+        p_source: payload.source ?? "manual",
+        p_source_reference_id: payload.source_reference_id ?? null
+      })
+    );
+  },
   update(id, payload) {
     return unwrap(supabase.from("incidents").update(payload).eq("id", id).select("id").single());
   }
 };
 
 export const reportsApi = {
-  assetsCsv: () =>
-    unwrap(
+  async assetsCsv() {
+    return unwrap(
       supabase
         .from("assets")
-        .select("tag_code, model, serial_number, status, labs(name), asset_types(name)")
+        .select("id, tag_code, qr_code_value, model, serial_number, host_name, domain_name, status, labs(name), asset_types(name)")
         .order("tag_code")
-    )
+    );
+  },
+  async boxesCsv() {
+    return unwrap(
+      supabase
+        .from("boxes")
+        .select("id, name, qr_code_value, description, expected_asset_count, status, box_assets(asset_id)")
+        .order("name")
+    );
+  },
+  async labsCsv() {
+    return unwrap(
+      supabase
+        .from("labs")
+        .select("id, name, qr_code_value, location, assets(id)")
+        .order("name")
+    );
+  },
+  async usage(filters = {}) {
+    return loansApi.list(filters);
+  },
+  async incidents(filters = {}) {
+    return incidentsApi.list(filters);
+  },
+  async audits(filters = {}) {
+    let query = supabase
+      .from("audits")
+      .select("id, asset_id, audited_at, status, notes, assets(tag_code, model)")
+      .order("audited_at", { ascending: false });
+
+    if (filters.dateFrom) {
+      query = query.gte("audited_at", `${filters.dateFrom}T00:00:00`);
+    }
+
+    if (filters.dateTo) {
+      query = query.lte("audited_at", `${filters.dateTo}T23:59:59`);
+    }
+
+    return unwrap(query);
+  },
+  async labChecklists(filters = {}) {
+    let query = supabase
+      .from("professor_lab_checklists")
+      .select("id, lab_id, responsible_name, session_class, reported_at, status, notes, labs(name)")
+      .order("reported_at", { ascending: false });
+
+    if (filters.dateFrom) {
+      query = query.gte("reported_at", `${filters.dateFrom}T00:00:00`);
+    }
+
+    if (filters.dateTo) {
+      query = query.lte("reported_at", `${filters.dateTo}T23:59:59`);
+    }
+
+    return unwrap(query);
+  },
+  async boxChecklists(filters = {}) {
+    let query = supabase
+      .from("box_checklists")
+      .select("id, box_id, responsible_name, session_class, stage, status, notes, reported_at, boxes(name)")
+      .order("reported_at", { ascending: false });
+
+    if (filters.dateFrom) {
+      query = query.gte("reported_at", `${filters.dateFrom}T00:00:00`);
+    }
+
+    if (filters.dateTo) {
+      query = query.lte("reported_at", `${filters.dateTo}T23:59:59`);
+    }
+
+    return unwrap(query);
+  },
+  async timeline(filters = {}) {
+    const [usages, incidents, audits, labChecklists, boxChecklists] = await Promise.all([
+      this.usage(filters),
+      this.incidents(filters),
+      this.audits(filters),
+      this.labChecklists(filters),
+      this.boxChecklists(filters)
+    ]);
+
+    return { usages, incidents, audits, labChecklists, boxChecklists };
+  },
 };
 
 export const publicScanApi = {

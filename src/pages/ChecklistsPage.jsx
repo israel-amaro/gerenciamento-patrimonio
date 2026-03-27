@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { useAsyncData } from "../hooks/useAsyncData";
-import { checklistsApi, lookupApi } from "../lib/api";
+import { checklistsApi, incidentsApi, lookupApi } from "../lib/api";
 import { formatDateTime } from "../lib/utils";
 
 const ChecklistsPage = () => {
@@ -28,13 +28,24 @@ const ChecklistsPage = () => {
         throw new Error("Selecione o laboratório e informe o responsável e a disciplina.");
       }
 
-      await checklistsApi.create({
+      const checklistId = await checklistsApi.create({
         lab_id: form.lab_id,
         responsible_name: form.responsible_name.trim(),
         session_class: form.session_class.trim(),
         status,
         notes: form.notes.trim() || null
       });
+
+      if (status === "has_issues") {
+        await incidentsApi.createEvent({
+          lab_id: form.lab_id,
+          title: "Problema reportado no checklist rapido do laboratorio",
+          description: form.notes.trim() || "Checklist rapido registrou problemas no laboratorio.",
+          severity: "medium",
+          source: "professor_checklist",
+          source_reference_id: checklistId
+        });
+      }
 
       setForm({ lab_id: "", responsible_name: "", session_class: "", notes: "" });
       setView("success");
