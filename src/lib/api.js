@@ -208,3 +208,21 @@ export const reportsApi = {
         .order("tag_code")
     )
 };
+
+export const publicAssetsApi = {
+  getContext(assetId) {
+    return unwrap(supabase.rpc("get_public_asset_context", { p_asset_id: assetId }).maybeSingle());
+  },
+  requestLoanByAsset(payload) {
+    return unwrap(
+      supabase.rpc("request_loan_by_asset", {
+        p_asset_id: payload.asset_id,
+        p_responsible_name: payload.responsible_name,
+        p_room_id: payload.room_id,
+        p_session_class: payload.session_class,
+        p_expected_return_at: payload.expected_return_at,
+        p_notes: payload.notes
+      })
+    );
+  }
+};

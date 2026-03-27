@@ -6,10 +6,10 @@ import { assetsApi, lookupApi } from "../lib/api";
 
 const buildQrCodeUrl = (assetId) => {
   if (typeof window === "undefined") {
-    return `/app/audits/${assetId}`;
+    return `/scan/${assetId}`;
   }
 
-  return `${window.location.origin}/app/audits/${assetId}`;
+  return `${window.location.origin}/scan/${assetId}`;
 };
 
 const createInitialForm = () => {

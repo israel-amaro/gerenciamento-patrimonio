@@ -375,6 +375,102 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.get_public_asset_context(p_asset_id UUID)
+RETURNS TABLE (
+  asset_id UUID,
+  tag_code TEXT,
+  qr_code_value TEXT,
+  serial_number TEXT,
+  host_name TEXT,
+  domain_name TEXT,
+  model TEXT,
+  asset_status TEXT,
+  lab_id UUID,
+  lab_name TEXT,
+  lab_location TEXT,
+  box_id UUID,
+  box_name TEXT,
+  box_status TEXT,
+  active_loan_id UUID,
+  loan_status TEXT,
+  borrowed_at TIMESTAMPTZ,
+  expected_return_at TIMESTAMPTZ,
+  responsible_name TEXT,
+  session_class TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    a.id AS asset_id,
+    a.tag_code,
+    a.qr_code_value,
+    a.serial_number,
+    a.host_name,
+    a.domain_name,
+    a.model,
+    a.status AS asset_status,
+    l.id AS lab_id,
+    l.name AS lab_name,
+    l.location AS lab_location,
+    b.id AS box_id,
+    b.name AS box_name,
+    b.status AS box_status,
+    ln.id AS active_loan_id,
+    ln.status AS loan_status,
+    ln.borrowed_at,
+    ln.expected_return_at,
+    ln.responsible_name,
+    ln.session_class
+  FROM public.assets a
+  LEFT JOIN public.labs l ON l.id = a.lab_id
+  LEFT JOIN public.box_assets ba ON ba.asset_id = a.id
+  LEFT JOIN public.boxes b ON b.id = ba.box_id
+  LEFT JOIN public.loans ln ON ln.box_id = b.id AND ln.status <> 'returned'
+  WHERE a.id = p_asset_id
+  LIMIT 1
+$$;
+
+CREATE OR REPLACE FUNCTION public.request_loan_by_asset(
+  p_asset_id UUID,
+  p_responsible_name TEXT,
+  p_room_id UUID,
+  p_session_class TEXT,
+  p_expected_return_at TIMESTAMPTZ,
+  p_notes TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_box_id UUID;
+BEGIN
+  SELECT ba.box_id
+  INTO v_box_id
+  FROM public.box_assets ba
+  INNER JOIN public.boxes b ON b.id = ba.box_id
+  WHERE ba.asset_id = p_asset_id
+  ORDER BY b.created_at
+  LIMIT 1;
+
+  IF v_box_id IS NULL THEN
+    RAISE EXCEPTION 'Nenhuma caixa vinculada a este ativo.';
+  END IF;
+
+  RETURN public.request_loan(
+    v_box_id,
+    p_responsible_name,
+    p_room_id,
+    p_session_class,
+    p_expected_return_at,
+    p_notes
+  );
+END;
+$$;
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.labs ENABLE ROW LEVEL SECURITY;
@@ -494,8 +590,12 @@ USING (public.is_admin())
 WITH CHECK (public.is_admin());
 
 GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.return_loan(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_public_checklist(UUID, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_asset_context(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.return_loan(UUID) TO anon;
 GRANT EXECUTE ON FUNCTION public.submit_public_checklist(UUID, TEXT, TEXT, TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_public_asset_context(UUID) TO anon;

@@ -10,10 +10,13 @@ import ChecklistsPage from "./pages/ChecklistsPage";
 import AuditsPage from "./pages/AuditsPage";
 import IncidentsPage from "./pages/IncidentsPage";
 import ReportsPage from "./pages/ReportsPage";
+import PublicAssetPage from "./pages/PublicAssetPage";
 
 const App = () => (
   <Routes>
     <Route path="/admin/login" element={<LoginPage />} />
+    <Route path="/scan/:assetId" element={<PublicAssetPage />} />
+    <Route path="/app/audits/:assetId" element={<PublicAssetPage />} />
     <Route path="/app" element={<AppLayout />}>
       <Route index element={<Navigate to="/app/loans" replace />} />
       <Route path="dashboard" element={<RoleRoute roles={["admin"]}><DashboardPage /></RoleRoute>} />
@@ -22,7 +25,7 @@ const App = () => (
       <Route path="loans" element={<LoansPage />} />
       <Route path="checklists" element={<ChecklistsPage />} />
       <Route path="audits" element={<RoleRoute roles={["admin"]}><AuditsPage /></RoleRoute>} />
-      <Route path="audits/:assetId" element={<RoleRoute roles={["admin"]}><AuditsPage /></RoleRoute>} />
+      <Route path="audits/manual/:assetId" element={<RoleRoute roles={["admin"]}><AuditsPage /></RoleRoute>} />
       <Route path="incidents" element={<RoleRoute roles={["admin"]}><IncidentsPage /></RoleRoute>} />
       <Route path="reports" element={<RoleRoute roles={["admin"]}><ReportsPage /></RoleRoute>} />
     </Route>
