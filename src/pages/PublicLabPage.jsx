@@ -32,7 +32,7 @@ const createReturnForm = (context) => ({
 });
 
 const buildChecklistNotes = ({ stage, context, notes }) =>
-  [`[${stage}] Laboratorio ${context.lab_name}`, notes?.trim()].filter(Boolean).join(" - ");
+  [`[${stage}] Laboratório ${context.lab_name}`, notes?.trim()].filter(Boolean).join(" - ");
 
 const PublicLabPage = () => {
   const { labId } = useParams();
@@ -53,14 +53,14 @@ const PublicLabPage = () => {
     try {
       const data = await publicScanApi.getLabContext(labId);
       if (!data) {
-        throw new Error("Laboratorio nao encontrado para este QR Code.");
+        throw new Error("Laboratório não encontrado para este QR Code.");
       }
 
       setContext(data);
       setReturnForm(createReturnForm(data));
     } catch (err) {
       setContext(null);
-      setFeedback(err.message || "Nao foi possivel carregar o laboratorio.");
+      setFeedback(err.message || "Não foi possível carregar o laboratório.");
     } finally {
       setLoading(false);
     }
@@ -110,7 +110,7 @@ const PublicLabPage = () => {
 
     try {
       if (!borrowForm.responsible_name.trim() || !borrowForm.room_id || !borrowForm.session_class.trim() || !borrowForm.expected_return_at) {
-        throw new Error("Preencha responsavel, sala, turma e previsao de devolucao.");
+        throw new Error("Preencha responsável, sala, turma e previsão de devolução.");
       }
 
       await publicScanApi.requestLoanByLab({
@@ -133,8 +133,8 @@ const PublicLabPage = () => {
       if (borrowForm.checklist_status === "has_issues") {
         await incidentsApi.createEvent({
           lab_id: context.lab_id,
-          title: `Problema reportado na retirada do laboratorio ${context.lab_name}`,
-          description: borrowForm.checklist_notes.trim() || "Checklist de retirada registrou problemas no laboratorio.",
+          title: `Problema reportado na retirada do laboratório ${context.lab_name}`,
+          description: borrowForm.checklist_notes.trim() || "O checklist de retirada registrou problemas no laboratório.",
           severity: "medium",
           source: "professor_checklist",
           source_reference_id: checklistId
@@ -142,10 +142,10 @@ const PublicLabPage = () => {
       }
 
       setBorrowForm(createBorrowForm());
-      setFeedback("Uso do laboratorio registrado com sucesso.");
+      setFeedback("Uso do laboratório registrado com sucesso.");
       await loadContext();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel registrar o uso do laboratorio.");
+      setFeedback(err.message || "Não foi possível registrar o uso do laboratório.");
     } finally {
       setBorrowing(false);
     }
@@ -158,7 +158,7 @@ const PublicLabPage = () => {
 
     try {
       if (!context?.active_loan_id) {
-        throw new Error("Nao existe uso ativo para este laboratorio.");
+        throw new Error("Não existe uso ativo para este laboratório.");
       }
 
       await loansApi.markReturned(context.active_loan_id);
@@ -174,18 +174,18 @@ const PublicLabPage = () => {
       if (returnForm.checklist_status === "has_issues") {
         await incidentsApi.createEvent({
           lab_id: context.lab_id,
-          title: `Problema reportado na devolucao do laboratorio ${context.lab_name}`,
-          description: returnForm.checklist_notes.trim() || "Checklist de devolucao registrou problemas no laboratorio.",
+          title: `Problema reportado na devolução do laboratório ${context.lab_name}`,
+          description: returnForm.checklist_notes.trim() || "O checklist de devolução registrou problemas no laboratório.",
           severity: "medium",
           source: "return_flow",
           source_reference_id: checklistId
         });
       }
 
-      setFeedback("Devolucao do laboratorio registrada com sucesso.");
+      setFeedback("Devolução do laboratório registrada com sucesso.");
       await loadContext();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel registrar a devolucao.");
+      setFeedback(err.message || "Não foi possível registrar a devolução.");
     } finally {
       setReturning(false);
     }
@@ -195,9 +195,9 @@ const PublicLabPage = () => {
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl p-4 md:p-8 space-y-6">
         <div className="space-y-2">
-          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Acesso publico por QR Code</div>
-          <h1 className="text-3xl font-bold tracking-tight">Laboratorio / retirada geral</h1>
-          <p className="text-muted-foreground">Use este QR para registrar o uso do laboratorio com checklist de inicio e fim.</p>
+          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Acesso público por QR Code</div>
+          <h1 className="text-3xl font-bold tracking-tight">Laboratório para retirada geral</h1>
+          <p className="text-muted-foreground">Use este QR para registrar o uso do laboratório com checklist de início e fim.</p>
         </div>
 
         {feedback ? <InlineMessage tone={feedback.includes("sucesso") ? "success" : "error"}>{feedback}</InlineMessage> : null}
@@ -207,7 +207,7 @@ const PublicLabPage = () => {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <Card className="xl:col-span-1">
               <CardHeader className="border-b bg-muted/20">
-                <CardTitle>Dados do laboratorio</CardTitle>
+                <CardTitle>Dados do laboratório</CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div>
@@ -215,7 +215,7 @@ const PublicLabPage = () => {
                   <div className="font-semibold">{context.lab_name}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-muted-foreground">Localizacao</div>
+                  <div className="text-xs uppercase text-muted-foreground">Localização</div>
                   <div>{context.lab_location || "-"}</div>
                 </div>
                 <div>
@@ -224,7 +224,7 @@ const PublicLabPage = () => {
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <Badge variant={context.active_loan_id ? "warning" : "success"}>
-                    {context.active_loan_id ? "Em uso" : "Disponivel"}
+                    {context.active_loan_id ? "Em uso" : "Disponível"}
                   </Badge>
                 </div>
               </CardContent>
@@ -234,17 +234,17 @@ const PublicLabPage = () => {
               {context.active_loan_id ? (
                 <Card>
                   <CardHeader className="border-b bg-muted/20">
-                    <CardTitle>Devolucao do laboratorio</CardTitle>
+                    <CardTitle>Devolução do laboratório</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
                     <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleReturn}>
-                      <FormField label="Responsavel">
+                      <FormField label="Responsável">
                         <Input name="responsible_name" value={returnForm.responsible_name} onChange={handleReturnChange} />
                       </FormField>
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={returnForm.session_class} onChange={handleReturnChange} />
                       </FormField>
-                      <FormField label="Checklist rapido">
+                      <FormField label="Checklist rápido">
                         <Select name="checklist_status" value={returnForm.checklist_status} onChange={handleReturnChange}>
                           {checklistOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -252,7 +252,7 @@ const PublicLabPage = () => {
                         </Select>
                       </FormField>
                       <div className="md:col-span-2">
-                        <FormField label="Observacoes">
+                        <FormField label="Observações">
                           <Textarea name="checklist_notes" value={returnForm.checklist_notes} onChange={handleReturnChange} />
                         </FormField>
                       </div>
@@ -265,11 +265,11 @@ const PublicLabPage = () => {
               ) : (
                 <Card>
                   <CardHeader className="border-b bg-muted/20">
-                    <CardTitle>Novo uso do laboratorio</CardTitle>
+                    <CardTitle>Novo uso do laboratório</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
                     <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleBorrow}>
-                      <FormField label="Responsavel">
+                      <FormField label="Responsável">
                         <Input name="responsible_name" value={borrowForm.responsible_name} onChange={handleBorrowChange} />
                       </FormField>
                       <FormField label="Sala">
@@ -283,15 +283,15 @@ const PublicLabPage = () => {
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={borrowForm.session_class} onChange={handleBorrowChange} />
                       </FormField>
-                      <FormField label="Previsao de devolucao">
+                      <FormField label="Previsão de devolução">
                         <Input name="expected_return_at" type="datetime-local" value={borrowForm.expected_return_at} onChange={handleBorrowChange} />
                       </FormField>
                       <div className="md:col-span-2">
-                        <FormField label="Observacoes do uso">
+                        <FormField label="Observações do uso">
                           <Textarea name="notes" value={borrowForm.notes} onChange={handleBorrowChange} />
                         </FormField>
                       </div>
-                      <FormField label="Checklist rapido">
+                      <FormField label="Checklist rápido">
                         <Select name="checklist_status" value={borrowForm.checklist_status} onChange={handleBorrowChange}>
                           {checklistOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -299,7 +299,7 @@ const PublicLabPage = () => {
                         </Select>
                       </FormField>
                       <div className="md:col-span-2">
-                        <FormField label="Observacoes do checklist">
+                        <FormField label="Observações do checklist">
                           <Textarea name="checklist_notes" value={borrowForm.checklist_notes} onChange={handleBorrowChange} />
                         </FormField>
                       </div>
@@ -317,15 +317,15 @@ const PublicLabPage = () => {
                 </CardHeader>
                 <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Responsavel atual</div>
+                    <div className="text-xs uppercase text-muted-foreground">Responsável atual</div>
                     <div>{context.responsible_name || "-"}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Inicio</div>
+                    <div className="text-xs uppercase text-muted-foreground">Início</div>
                     <div>{formatDateTime(context.borrowed_at)}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Previsao</div>
+                    <div className="text-xs uppercase text-muted-foreground">Previsão</div>
                     <div>{formatDateTime(context.expected_return_at)}</div>
                   </div>
                 </CardContent>

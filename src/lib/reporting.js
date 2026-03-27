@@ -10,7 +10,7 @@ export const openPrintTableDocument = async ({ title, subtitle, columns, rows })
   const printWindow = window.open("", "_blank", "width=1200,height=800");
 
   if (!printWindow) {
-    throw new Error("Nao foi possivel abrir a janela do relatorio.");
+    throw new Error("Não foi possível abrir a janela do relatório.");
   }
 
   const tableHead = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
@@ -59,7 +59,7 @@ export const openPrintLabelsDocument = async ({ title, cards }) => {
   const printWindow = window.open("", "_blank", "width=960,height=720");
 
   if (!printWindow) {
-    throw new Error("Nao foi possivel abrir a janela de impressao.");
+    throw new Error("Não foi possível abrir a janela de impressão.");
   }
 
   const content = cards.map((card) => `

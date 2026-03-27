@@ -50,14 +50,14 @@ const PublicBoxPage = () => {
     try {
       const data = await publicScanApi.getBoxContext(boxId);
       if (!data) {
-        throw new Error("Carrinho nao encontrado para este QR Code.");
+        throw new Error("Carrinho não encontrado para este QR Code.");
       }
 
       setContext(data);
       setReturnForm(createReturnForm(data));
     } catch (err) {
       setContext(null);
-      setFeedback(err.message || "Nao foi possivel carregar o carrinho.");
+      setFeedback(err.message || "Não foi possível carregar o carrinho.");
     } finally {
       setLoading(false);
     }
@@ -107,7 +107,7 @@ const PublicBoxPage = () => {
 
     try {
       if (!borrowForm.responsible_name.trim() || !borrowForm.room_id || !borrowForm.session_class.trim() || !borrowForm.expected_return_at) {
-        throw new Error("Preencha responsavel, sala, turma e previsao de devolucao.");
+        throw new Error("Preencha responsável, sala, turma e previsão de devolução.");
       }
 
       const loanId = await publicScanApi.requestLoanByBox({
@@ -133,7 +133,7 @@ const PublicBoxPage = () => {
         await incidentsApi.createEvent({
           box_id: context.box_id,
           title: `Problema reportado na retirada do carrinho ${context.box_name}`,
-          description: borrowForm.checklist_notes.trim() || "Checklist de retirada registrou problemas no carrinho.",
+          description: borrowForm.checklist_notes.trim() || "O checklist de retirada registrou problemas no carrinho.",
           severity: "medium",
           source: "return_flow",
           source_reference_id: loanId
@@ -144,7 +144,7 @@ const PublicBoxPage = () => {
       setFeedback("Retirada do carrinho registrada com sucesso.");
       await loadContext();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel registrar a retirada.");
+      setFeedback(err.message || "Não foi possível registrar a retirada.");
     } finally {
       setBorrowing(false);
     }
@@ -157,7 +157,7 @@ const PublicBoxPage = () => {
 
     try {
       if (!context?.active_loan_id) {
-        throw new Error("Nao existe retirada ativa para este carrinho.");
+        throw new Error("Não existe retirada ativa para este carrinho.");
       }
 
       await publicScanApi.submitBoxChecklist({
@@ -173,8 +173,8 @@ const PublicBoxPage = () => {
       if (returnForm.checklist_status === "has_issues") {
         await incidentsApi.createEvent({
           box_id: context.box_id,
-          title: `Problema reportado na devolucao do carrinho ${context.box_name}`,
-          description: returnForm.checklist_notes.trim() || "Checklist de devolucao registrou problemas no carrinho.",
+          title: `Problema reportado na devolução do carrinho ${context.box_name}`,
+          description: returnForm.checklist_notes.trim() || "O checklist de devolução registrou problemas no carrinho.",
           severity: "medium",
           source: "return_flow",
           source_reference_id: context.active_loan_id
@@ -183,10 +183,10 @@ const PublicBoxPage = () => {
 
       await loansApi.markReturned(context.active_loan_id);
 
-      setFeedback("Devolucao do carrinho registrada com sucesso.");
+      setFeedback("Devolução do carrinho registrada com sucesso.");
       await loadContext();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel registrar a devolucao.");
+      setFeedback(err.message || "Não foi possível registrar a devolução.");
     } finally {
       setReturning(false);
     }
@@ -196,9 +196,9 @@ const PublicBoxPage = () => {
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl p-4 md:p-8 space-y-6">
         <div className="space-y-2">
-          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Acesso publico por QR Code</div>
-          <h1 className="text-3xl font-bold tracking-tight">Carrinho / retirada geral</h1>
-          <p className="text-muted-foreground">Use este QR para retirada e devolucao do carrinho completo com checklist rapido.</p>
+          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Acesso público por QR Code</div>
+          <h1 className="text-3xl font-bold tracking-tight">Carrinho para retirada geral</h1>
+          <p className="text-muted-foreground">Use este QR para retirada e devolução do carrinho completo com checklist rápido.</p>
         </div>
 
         {feedback ? <InlineMessage tone={feedback.includes("sucesso") ? "success" : "error"}>{feedback}</InlineMessage> : null}
@@ -217,11 +217,11 @@ const PublicBoxPage = () => {
                 </div>
                 <div>
                   <div className="text-xs uppercase text-muted-foreground">Tipo</div>
-                  <div>Carrinho movel</div>
-                  <div className="text-sm text-muted-foreground">Fluxo independente com checklist proprio.</div>
+                  <div>Carrinho móvel</div>
+                  <div className="text-sm text-muted-foreground">Fluxo independente com checklist próprio.</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-muted-foreground">Descricao</div>
+                  <div className="text-xs uppercase text-muted-foreground">Descrição</div>
                   <div>{context.box_description || "-"}</div>
                 </div>
                 <div>
@@ -234,7 +234,7 @@ const PublicBoxPage = () => {
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <Badge variant={context.active_loan_id ? "warning" : "success"}>
-                    {context.active_loan_id ? "Emprestado" : "Disponivel"}
+                    {context.active_loan_id ? "Emprestado" : "Disponível"}
                   </Badge>
                   <Badge variant={context.is_complete === false ? "destructive" : "outline"}>
                     {context.is_complete === null ? "Sem meta" : context.is_complete ? "Completo" : "Incompleto"}
@@ -247,17 +247,17 @@ const PublicBoxPage = () => {
               {context.active_loan_id ? (
                 <Card>
                   <CardHeader className="border-b bg-muted/20">
-                    <CardTitle>Devolucao do carrinho</CardTitle>
+                    <CardTitle>Devolução do carrinho</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
                     <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleReturn}>
-                      <FormField label="Responsavel">
+                      <FormField label="Responsável">
                         <Input name="responsible_name" value={returnForm.responsible_name} onChange={handleReturnChange} />
                       </FormField>
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={returnForm.session_class} onChange={handleReturnChange} />
                       </FormField>
-                      <FormField label="Checklist rapido">
+                      <FormField label="Checklist rápido">
                         <Select name="checklist_status" value={returnForm.checklist_status} onChange={handleReturnChange}>
                           {checklistOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -265,7 +265,7 @@ const PublicBoxPage = () => {
                         </Select>
                       </FormField>
                       <div className="md:col-span-2">
-                        <FormField label="Observacoes">
+                        <FormField label="Observações">
                           <Textarea name="checklist_notes" value={returnForm.checklist_notes} onChange={handleReturnChange} />
                         </FormField>
                       </div>
@@ -278,11 +278,11 @@ const PublicBoxPage = () => {
               ) : (
                 <Card>
                   <CardHeader className="border-b bg-muted/20">
-                    <CardTitle>Novo emprestimo do carrinho</CardTitle>
+                    <CardTitle>Novo empréstimo do carrinho</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
                     <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleBorrow}>
-                      <FormField label="Responsavel">
+                      <FormField label="Responsável">
                         <Input name="responsible_name" value={borrowForm.responsible_name} onChange={handleBorrowChange} placeholder="Ex: Prof. Maria" />
                       </FormField>
                       <FormField label="Sala">
@@ -296,15 +296,15 @@ const PublicBoxPage = () => {
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={borrowForm.session_class} onChange={handleBorrowChange} />
                       </FormField>
-                      <FormField label="Previsao de devolucao">
+                      <FormField label="Previsão de devolução">
                         <Input name="expected_return_at" type="datetime-local" value={borrowForm.expected_return_at} onChange={handleBorrowChange} />
                       </FormField>
                       <div className="md:col-span-2">
-                        <FormField label="Observacoes do emprestimo">
+                        <FormField label="Observações do empréstimo">
                           <Textarea name="notes" value={borrowForm.notes} onChange={handleBorrowChange} />
                         </FormField>
                       </div>
-                      <FormField label="Checklist rapido">
+                      <FormField label="Checklist rápido">
                         <Select name="checklist_status" value={borrowForm.checklist_status} onChange={handleBorrowChange}>
                           {checklistOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -312,7 +312,7 @@ const PublicBoxPage = () => {
                         </Select>
                       </FormField>
                       <div className="md:col-span-2">
-                        <FormField label="Observacoes do checklist">
+                        <FormField label="Observações do checklist">
                           <Textarea name="checklist_notes" value={borrowForm.checklist_notes} onChange={handleBorrowChange} />
                         </FormField>
                       </div>
@@ -330,15 +330,15 @@ const PublicBoxPage = () => {
                 </CardHeader>
                 <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Responsavel atual</div>
+                    <div className="text-xs uppercase text-muted-foreground">Responsável atual</div>
                     <div>{context.responsible_name || "-"}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Ultima retirada</div>
+                    <div className="text-xs uppercase text-muted-foreground">Última retirada</div>
                     <div>{formatDateTime(context.borrowed_at)}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Previsao</div>
+                    <div className="text-xs uppercase text-muted-foreground">Previsão</div>
                     <div>{formatDateTime(context.expected_return_at)}</div>
                   </div>
                 </CardContent>

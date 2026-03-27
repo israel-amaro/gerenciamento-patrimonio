@@ -8,10 +8,10 @@ const items = [
   { label: "Dashboard", path: "/app/dashboard", icon: "layout-dashboard", roles: ["admin"] },
   { label: "Ativos", path: "/app/assets", icon: "laptop", roles: ["admin"] },
   { label: "Carrinhos", path: "/app/boxes", icon: "package", roles: ["admin"] },
-  { label: "Laboratorios", path: "/app/labs", icon: "clipboard-check", roles: ["admin"] },
+  { label: "Laboratórios", path: "/app/labs", icon: "clipboard-check", roles: ["admin"] },
   { label: "Empréstimos", path: "/app/loans", icon: "arrow-right-left" },
   { label: "Checklist Rápido", path: "/app/checklists", icon: "clipboard-check" },
-  { label: "Auditoria Tech", path: "/app/audits", icon: "scan-line", roles: ["admin"] },
+  { label: "Auditoria técnica", path: "/app/audits", icon: "scan-line", roles: ["admin"] },
   { label: "Defeitos", path: "/app/incidents", icon: "alert-triangle", roles: ["admin"] },
   { label: "Relatórios", path: "/app/reports", icon: "file-text", roles: ["admin"] }
 ];
@@ -78,7 +78,7 @@ const AppLayout = () => {
             <>
               <Button variant="ghost" className="flex items-center gap-2">
                 <Icon name="user-circle" />
-                {profile?.full_name || "Admin Findes"}
+                {profile?.full_name || "Administrador"}
               </Button>
               <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sair">
                 <LogOut className="h-4 w-4" />
@@ -86,7 +86,7 @@ const AppLayout = () => {
             </>
           ) : !loading ? (
             <Button variant="ghost" onClick={() => navigate("/admin/login")}>
-              Admin
+              Área admin
             </Button>
           ) : null}
         </header>

@@ -122,7 +122,7 @@ const LabsPage = () => {
       reset();
       await Promise.all([labs.reload(), assets.reload()]);
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel salvar o laboratorio.");
+      setFeedback(err.message || "Não foi possível salvar o laboratório.");
     } finally {
       setSubmitting(false);
     }
@@ -131,10 +131,10 @@ const LabsPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight">Laboratorios</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Laboratórios</h1>
         <Button onClick={() => (showForm ? setShowForm(false) : handleCreate())}>
           <Icon name="plus" className="mr-2" />
-          {showForm ? "Fechar" : "Novo Laboratorio"}
+          {showForm ? "Fechar" : "Novo laboratório"}
         </Button>
       </div>
 
@@ -202,7 +202,7 @@ const LabsPage = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Laboratorio</th>
+                  <th>Laboratório</th>
                   <th>Localizacao</th>
                   <th>Qtd. ativos</th>
                   <th>QR</th>

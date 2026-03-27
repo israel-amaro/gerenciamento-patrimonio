@@ -39,7 +39,7 @@ const ReportsPage = () => {
         }
       } catch (err) {
         if (active) {
-          setMessage(err.message || "Nao foi possivel carregar as etiquetas.");
+          setMessage(err.message || "Não foi possível carregar as etiquetas.");
         }
       } finally {
         if (active) {
@@ -59,9 +59,9 @@ const ReportsPage = () => {
     try {
       const rows = await reportsApi.assetsCsv();
       await openPrintTableDocument({
-        title: "Relatorio de inventario",
+        title: "Relatório de inventário",
         subtitle: `Periodo: ${periodLabel}`,
-        columns: ["Patrimonio", "Modelo", "Serial", "Status", "Host", "Dominio", "Laboratorio", "Tipo", "QR"],
+        columns: ["Patrimônio", "Modelo", "Serial", "Status", "Host", "Domínio", "Laboratório", "Tipo", "QR"],
         rows: rows.map((row) => [
           row.tag_code,
           row.model,
@@ -74,9 +74,9 @@ const ReportsPage = () => {
           row.qr_code_value || ""
         ])
       });
-      setMessage("Relatorio de inventario aberto para PDF.");
+      setMessage("Relatório de inventário aberto para PDF.");
     } catch (err) {
-      setMessage(err.message || "Nao foi possivel gerar o relatorio de inventario.");
+      setMessage(err.message || "Não foi possível gerar o relatório de inventário.");
     }
   };
 
@@ -84,9 +84,9 @@ const ReportsPage = () => {
     try {
       const rows = await reportsApi.usage(filters);
       await openPrintTableDocument({
-        title: "Historico de uso",
+        title: "Histórico de uso",
         subtitle: `Periodo: ${periodLabel}`,
-        columns: ["ID", "Carrinho", "Laboratorio", "Ativo", "Responsavel", "Turma", "Retirada", "Previsao", "Status"],
+        columns: ["ID", "Carrinho", "Laboratório", "Ativo", "Responsável", "Turma", "Retirada", "Previsão", "Status"],
         rows: rows.map((row) => [
           row.id,
           row.box_id || "",
@@ -99,9 +99,9 @@ const ReportsPage = () => {
           row.status
         ])
       });
-      setMessage("Historico de uso aberto para PDF.");
+      setMessage("Histórico de uso aberto para PDF.");
     } catch (err) {
-      setMessage(err.message || "Nao foi possivel gerar o historico de uso.");
+      setMessage(err.message || "Não foi possível gerar o histórico de uso.");
     }
   };
 
@@ -109,9 +109,9 @@ const ReportsPage = () => {
     try {
       const rows = await reportsApi.incidents(filters);
       await openPrintTableDocument({
-        title: "Relatorio de defeitos",
+        title: "Relatório de defeitos",
         subtitle: `Periodo: ${periodLabel}`,
-        columns: ["ID", "Ativo", "Carrinho", "Laboratorio", "Origem", "Problema", "Severidade", "Status", "Data"],
+        columns: ["ID", "Ativo", "Carrinho", "Laboratório", "Origem", "Problema", "Severidade", "Status", "Data"],
         rows: rows.map((row) => [
           row.id,
           row.assets?.tag_code || "",
@@ -124,9 +124,9 @@ const ReportsPage = () => {
           formatDateTime(row.created_at)
         ])
       });
-      setMessage("Relatorio de defeitos aberto para PDF.");
+      setMessage("Relatório de defeitos aberto para PDF.");
     } catch (err) {
-      setMessage(err.message || "Nao foi possivel gerar o relatorio de defeitos.");
+      setMessage(err.message || "Não foi possível gerar o relatório de defeitos.");
     }
   };
 
@@ -142,14 +142,14 @@ const ReportsPage = () => {
       ];
 
       await openPrintTableDocument({
-        title: "Relatorio consolidado",
+        title: "Relatório consolidado",
         subtitle: `Periodo: ${periodLabel}`,
-        columns: ["Tipo", "ID", "Alvo", "Campo1", "Campo2", "Campo3", "Data", "Observacoes"],
+        columns: ["Tipo", "ID", "Alvo", "Campo 1", "Campo 2", "Campo 3", "Data", "Observações"],
         rows
       });
-      setMessage("Relatorio consolidado aberto para PDF.");
+      setMessage("Relatório consolidado aberto para PDF.");
     } catch (err) {
-      setMessage(err.message || "Nao foi possivel gerar o relatorio consolidado.");
+      setMessage(err.message || "Não foi possível gerar o relatório consolidado.");
     }
   };
 
@@ -198,7 +198,7 @@ const ReportsPage = () => {
         }))
       );
 
-      const title = labelType === "assets" ? "Etiquetas de ativos" : labelType === "boxes" ? "Etiquetas de carrinhos" : "Etiquetas de laboratorios";
+      const title = labelType === "assets" ? "Etiquetas de ativos" : labelType === "boxes" ? "Etiquetas de carrinhos" : "Etiquetas de laboratórios";
       const cards = labelsWithQr.map((label) => {
         const primary = labelType === "assets" ? label.tag_code : label.name;
         const secondary =
@@ -215,39 +215,39 @@ const ReportsPage = () => {
       });
 
       await openPrintLabelsDocument({ title, cards });
-      setMessage("Etiquetas abertas para impressao.");
+      setMessage("Etiquetas abertas para impressão.");
     } catch (err) {
-      setMessage(err.message || "Nao foi possivel imprimir as etiquetas.");
+      setMessage(err.message || "Não foi possível imprimir as etiquetas.");
     }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Relatorios e Impressao de QR</h1>
-        <p className="text-muted-foreground">Exporte historicos por periodo e imprima etiquetas de ativos, carrinhos e laboratorios.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Relatórios e impressão de QR</h1>
+        <p className="text-muted-foreground">Gere relatórios em PDF por período e imprima etiquetas de ativos, carrinhos e laboratórios.</p>
       </div>
 
       {message ? <InlineMessage tone={message.includes("sucesso") ? "success" : "error"}>{message}</InlineMessage> : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Periodo</CardTitle>
+          <CardTitle>Período</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
-          <Button variant="outline" onClick={() => { setDateFrom(""); setDateTo(""); }}>Limpar periodo</Button>
+          <Button variant="outline" onClick={() => { setDateFrom(""); setDateTo(""); }}>Limpar período</Button>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
-          <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Inventário</CardTitle></CardHeader>
           <CardContent>
             <Button variant="outline" onClick={exportAssets}>
               <Icon name="download" className="mr-2" />
-              PDF de ativos
+              Inventário em PDF
             </Button>
           </CardContent>
         </Card>
@@ -277,7 +277,7 @@ const ReportsPage = () => {
           <CardContent>
             <Button variant="outline" onClick={exportTimeline}>
               <Icon name="download" className="mr-2" />
-              PDF consolidado
+              Consolidado em PDF
             </Button>
           </CardContent>
         </Card>
@@ -285,12 +285,12 @@ const ReportsPage = () => {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Impressao de QR Codes</CardTitle>
+          <CardTitle>Impressão de QR Codes</CardTitle>
           <div className="flex gap-2">
             <Select value={labelType} onChange={(event) => setLabelType(event.target.value)}>
               <option value="assets">Ativos</option>
               <option value="boxes">Carrinhos</option>
-              <option value="labs">Laboratorios</option>
+              <option value="labs">Laboratórios</option>
             </Select>
             <Button variant="outline" onClick={printSelectedLabels}>
               <Icon name="printer" className="mr-2" />
@@ -302,7 +302,7 @@ const ReportsPage = () => {
           {loadingLabels ? <div className="text-sm text-muted-foreground">Gerando etiquetas...</div> : null}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <Input
-              placeholder={`Buscar ${labelType === "assets" ? "ativo" : labelType === "boxes" ? "carrinho" : "laboratorio"}...`}
+              placeholder={`Buscar ${labelType === "assets" ? "ativo" : labelType === "boxes" ? "carrinho" : "laboratório"}...`}
               className="md:max-w-sm"
               value={labelSearch}
               onChange={(event) => setLabelSearch(event.target.value)}
@@ -312,12 +312,12 @@ const ReportsPage = () => {
                 {filteredLabels.length > 0 && filteredLabels.every((label) => selectedLabelIds.includes(label.id)) ? "Desmarcar filtrados" : "Selecionar filtrados"}
               </Button>
               <Button type="button" variant="ghost" onClick={() => setSelectedLabelIds([])}>
-                Limpar selecao
+                Limpar seleção
               </Button>
             </div>
           </div>
           <div className="text-sm text-muted-foreground">
-            {selectedLabelIds.length} selecionado(s) para impressao
+            {selectedLabelIds.length} selecionado(s) para impressão
           </div>
           <div className="max-h-[420px] overflow-y-auto rounded-lg border">
             {filteredLabels.length === 0 ? (
@@ -341,7 +341,7 @@ const ReportsPage = () => {
                     >
                       <div>
                         <div className="font-medium">{primary || "-"}</div>
-                        <div className="text-sm text-muted-foreground">{secondary || "Sem informacao complementar"}</div>
+                        <div className="text-sm text-muted-foreground">{secondary || "Sem informação complementar"}</div>
                       </div>
                       <div className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${selected ? "border-primary/20 bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>
                         {selected ? "Selecionado" : "Selecionar"}

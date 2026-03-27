@@ -23,7 +23,7 @@ const targetTypeOptions = {
   all: "Tudo",
   box: "Carrinhos",
   asset: "Ativos",
-  lab: "Laboratorios"
+  lab: "Laboratórios"
 };
 
 const LoansPage = () => {
@@ -62,7 +62,7 @@ const LoansPage = () => {
 
     try {
       if (!form.box_id || !form.room_id || !form.session_class || !form.expected_return_at || !form.responsible_name.trim()) {
-        throw new Error("Preencha carrinho, responsavel, sala, turma e previsao de devolucao.");
+        throw new Error("Preencha carrinho, responsável, sala, turma e previsão de devolução.");
       }
 
       await loansApi.create({
@@ -79,7 +79,7 @@ const LoansPage = () => {
       setShowForm(false);
       await loans.reload();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel registrar o emprestimo.");
+      setFeedback(err.message || "Não foi possível registrar o empréstimo.");
     } finally {
       setSubmitting(false);
     }
@@ -90,7 +90,7 @@ const LoansPage = () => {
       await loansApi.markReturned(loan.id);
       await loans.reload();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel registrar a devolucao.");
+      setFeedback(err.message || "Não foi possível registrar a devolução.");
     }
   };
 
@@ -108,17 +108,17 @@ const LoansPage = () => {
 
   const getTargetTypeLabel = (loan) => {
     if (loan.box_id) return "Carrinho";
-    if (loan.lab_id) return "Laboratorio";
+    if (loan.lab_id) return "Laboratório";
     return "Ativo";
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight">Movimentacao / Historico de uso</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Movimentação e histórico de uso</h1>
         <Button onClick={() => setShowForm((current) => !current)}>
           <Icon name="plus" className="mr-2" />
-          {showForm ? "Fechar" : "Novo Emprestimo"}
+          {showForm ? "Fechar" : "Novo empréstimo"}
         </Button>
       </div>
 
@@ -133,7 +133,7 @@ const LoansPage = () => {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Responsavel">
+            <FormField label="Responsável">
               <Input name="responsible_name" value={form.responsible_name} onChange={handleChange} />
             </FormField>
             <FormField label="Sala / Local">
@@ -147,16 +147,16 @@ const LoansPage = () => {
             <FormField label="Turma / Disciplina">
               <Input name="session_class" value={form.session_class} onChange={handleChange} />
             </FormField>
-            <FormField label="Previsao de devolucao">
+            <FormField label="Previsão de devolução">
               <Input name="expected_return_at" type="datetime-local" value={form.expected_return_at} onChange={handleChange} />
             </FormField>
-            <FormField label="Observacoes">
+            <FormField label="Observações">
               <Input name="notes" value={form.notes} onChange={handleChange} />
             </FormField>
             {feedback ? <div className="md:col-span-2"><InlineMessage tone="error">{feedback}</InlineMessage></div> : null}
             <div className="md:col-span-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar emprestimo"}</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar empréstimo"}</Button>
             </div>
           </form>
         </Card>
@@ -164,7 +164,7 @@ const LoansPage = () => {
 
       <Card>
         <div className="p-4 border-b bg-muted/20 flex flex-wrap gap-2 items-center">
-          <Input placeholder="Buscar movimentacao..." className="max-w-sm" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <Input placeholder="Buscar movimentação..." className="max-w-sm" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           <Select className="max-w-44" value={targetType} onChange={(event) => setTargetType(event.target.value)}>
@@ -178,7 +178,7 @@ const LoansPage = () => {
           {loans.loading ? <div className="p-4"><LoadingState /></div> : null}
           {loans.error ? <div className="p-4"><InlineMessage tone="error">{loans.error}</InlineMessage></div> : null}
           {!loans.loading && !loans.error && loans.data?.length === 0 ? (
-            <EmptyState title="Nenhuma movimentacao encontrada" description="Use os filtros acima para localizar historico de uso por periodo." />
+            <EmptyState title="Nenhuma movimentação encontrada" description="Use os filtros acima para localizar o histórico de uso por período." />
           ) : null}
           {loans.data?.length ? (
             <table>
@@ -186,12 +186,12 @@ const LoansPage = () => {
                 <tr>
                   <th>Tipo</th>
                   <th>Item</th>
-                  <th>Responsavel</th>
+                  <th>Responsável</th>
                   <th>Local / Turma</th>
                   <th>Retirada</th>
-                  <th>Previsao</th>
+                  <th>Previsão</th>
                   <th>Status</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,7 +212,7 @@ const LoansPage = () => {
                       {loan.status !== "returned" ? (
                         <Button size="sm" onClick={() => handleReturn(loan)}>Devolver</Button>
                       ) : (
-                        <span className="text-sm text-muted-foreground">Concluido</span>
+                        <span className="text-sm text-muted-foreground">Concluído</span>
                       )}
                     </td>
                   </tr>

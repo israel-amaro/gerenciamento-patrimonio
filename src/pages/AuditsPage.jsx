@@ -46,12 +46,12 @@ const buildAuditIncident = (asset, form) => {
     issues.push(`Status: ${form.status}`);
   }
 
-  if (!form.powers_on) issues.push("Nao liga");
-  if (!form.internet_working) issues.push("Internet indisponivel");
+  if (!form.powers_on) issues.push("Não liga");
+  if (!form.internet_working) issues.push("Internet indisponível");
   if (!form.keyboard_ok) issues.push("Teclado com problema");
   if (!form.mouse_ok) issues.push("Mouse com problema");
   if (!form.monitor_ok) issues.push("Monitor com problema");
-  if (!form.no_physical_damage) issues.push("Dano fisico identificado");
+  if (!form.no_physical_damage) issues.push("Dano físico identificado");
   if (form.notes.trim()) issues.push(form.notes.trim());
 
   if (!issues.length) {
@@ -106,14 +106,14 @@ const AuditsPage = () => {
       }
 
       if (!result) {
-        throw new Error("Nenhum ativo encontrado para a referencia informada.");
+        throw new Error("Nenhum ativo encontrado para a referência informada.");
       }
 
       setAsset(result);
       setLookupValue(result.qr_code_value || result.tag_code);
     } catch (err) {
       setAsset(null);
-      setFeedback(err.message || "Nao foi possivel buscar o ativo.");
+      setFeedback(err.message || "Não foi possível buscar o ativo.");
     } finally {
       setLoading(false);
     }
@@ -170,7 +170,7 @@ const AuditsPage = () => {
       setLookupValue("");
       setForm(auditDefaults);
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel salvar a auditoria.");
+      setFeedback(err.message || "Não foi possível salvar a auditoria.");
     } finally {
       setSaving(false);
     }
@@ -178,7 +178,7 @@ const AuditsPage = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight">Auditoria Tecnica com QR Code</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Auditoria técnica com QR Code</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="border-b bg-muted/20 flex flex-row items-center gap-2">
@@ -215,15 +215,15 @@ const AuditsPage = () => {
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="text-sm space-y-1">
                   <div className="font-medium">{asset.model}</div>
-                  <div className="text-muted-foreground">{asset.host_name || "Sem nome de maquina"}</div>
-                  <div className="text-muted-foreground">{asset.domain_name || "Sem dominio"}</div>
-                  <div className="text-muted-foreground">{asset.labs?.name || "Sem laboratorio"}</div>
+                  <div className="text-muted-foreground">{asset.host_name || "Sem nome de máquina"}</div>
+                  <div className="text-muted-foreground">{asset.domain_name || "Sem domínio"}</div>
+                  <div className="text-muted-foreground">{asset.labs?.name || "Sem laboratório"}</div>
                 </div>
                 <FormField label="Status geral">
                   <Select name="status" value={form.status} onChange={handleChange}>
                     <option value="functioning_normally">Funcionando normalmente</option>
                     <option value="functioning_with_issue">Funcionando com falha</option>
-                    <option value="not_functioning">Nao esta funcionando</option>
+                    <option value="not_functioning">Não está funcionando</option>
                     <option value="missing">Extraviado</option>
                   </Select>
                 </FormField>
@@ -233,19 +233,19 @@ const AuditsPage = () => {
                   ["keyboard_ok", "Teclado OK"],
                   ["mouse_ok", "Mouse OK"],
                   ["monitor_ok", "Monitor OK"],
-                  ["no_physical_damage", "Sem dano fisico"]
+                  ["no_physical_damage", "Sem dano físico"]
                 ].map(([name, label]) => (
                   <FormField key={name} label={label}>
                     <Select value={String(form[name])} onChange={(event) => handleBooleanChange(name, event.target.value)}>
                       <option value="true">Sim</option>
-                      <option value="false">Nao</option>
+                      <option value="false">Não</option>
                     </Select>
                   </FormField>
                 ))}
-                <FormField label="Observacoes">
+                <FormField label="Observações">
                   <Textarea name="notes" value={form.notes} onChange={handleChange} />
                 </FormField>
-                <Button type="submit" className="w-full" disabled={saving}>{saving ? "Salvando..." : "Salvar Auditoria"}</Button>
+                <Button type="submit" className="w-full" disabled={saving}>{saving ? "Salvando..." : "Salvar auditoria"}</Button>
               </form>
             ) : (
               <div className="text-sm">Aguardando escaneamento...</div>

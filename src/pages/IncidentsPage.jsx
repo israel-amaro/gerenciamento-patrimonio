@@ -16,13 +16,13 @@ const severityMap = {
   low: ["Baixa", "outline"],
   medium: ["Moderada", "warning"],
   high: ["Alta", "destructive"],
-  critical: ["Critica", "destructive"]
+  critical: ["Crítica", "destructive"]
 };
 
 const statusOptions = {
   open: "Aberto",
-  in_review: "Em analise",
-  in_maintenance: "Em manutencao",
+  in_review: "Em análise",
+  in_maintenance: "Em manutenção",
   resolved: "Resolvido",
   discarded: "Descartado"
 };
@@ -30,8 +30,8 @@ const statusOptions = {
 const sourceOptions = {
   manual: "Manual",
   audit: "Auditoria Tech",
-  professor_checklist: "Checklist Rapido",
-  return_flow: "Fluxo de Devolucao"
+  professor_checklist: "Checklist rápido",
+  return_flow: "Fluxo de devolução"
 };
 
 const IncidentsPage = () => {
@@ -109,7 +109,7 @@ const IncidentsPage = () => {
       reset();
       await incidents.reload();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel salvar o ticket.");
+      setFeedback(err.message || "Não foi possível salvar o chamado.");
     } finally {
       setSubmitting(false);
     }
@@ -121,7 +121,7 @@ const IncidentsPage = () => {
         <h1 className="text-2xl font-bold tracking-tight">Defeitos / Incidentes</h1>
         <Button variant="destructive" onClick={() => setShowForm((current) => !current)}>
           <Icon name="alert-triangle" className="mr-2 h-4 w-4" />
-          {showForm ? "Fechar" : "Abrir Ticket"}
+          {showForm ? "Fechar" : "Abrir chamado"}
         </Button>
       </div>
 
@@ -149,7 +149,7 @@ const IncidentsPage = () => {
               </FormField>
             </div>
             <div className="md:col-span-2">
-              <FormField label="Descricao">
+              <FormField label="Descrição">
                 <Textarea name="description" value={form.description} onChange={handleChange} />
               </FormField>
             </div>
@@ -163,7 +163,7 @@ const IncidentsPage = () => {
             {feedback ? <div className="md:col-span-2"><InlineMessage tone="error">{feedback}</InlineMessage></div> : null}
             <div className="md:col-span-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={reset}>Cancelar</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar ticket"}</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar chamado"}</Button>
             </div>
           </form>
         </Card>
@@ -189,9 +189,9 @@ const IncidentsPage = () => {
               <div>{statusOptions[selectedIncident.status] || selectedIncident.status}</div>
             </div>
             <div className="md:col-span-2">
-              <div className="text-xs uppercase text-muted-foreground">Descricao completa</div>
+              <div className="text-xs uppercase text-muted-foreground">Descrição completa</div>
               <div className="mt-1 rounded-md border bg-muted/20 p-3 whitespace-pre-wrap min-h-20">
-                {selectedIncident.description || "Sem descricao informada."}
+                {selectedIncident.description || "Sem descrição informada."}
               </div>
             </div>
             <div className="md:col-span-2 flex justify-end gap-2">
@@ -229,7 +229,7 @@ const IncidentsPage = () => {
           {incidents.loading ? <div className="p-4"><LoadingState /></div> : null}
           {incidents.error ? <div className="p-4"><InlineMessage tone="error">{incidents.error}</InlineMessage></div> : null}
           {!incidents.loading && !incidents.error && incidents.data?.length === 0 ? (
-            <EmptyState title="Nenhum incidente encontrado" description="Abra um ticket para acompanhar defeitos e ocorrencias." />
+            <EmptyState title="Nenhum incidente encontrado" description="Abra um chamado para acompanhar defeitos e ocorrências." />
           ) : null}
           {incidents.data?.length ? (
             <table>
@@ -241,7 +241,7 @@ const IncidentsPage = () => {
                   <th>Origem</th>
                   <th>Severidade</th>
                   <th>Status</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>

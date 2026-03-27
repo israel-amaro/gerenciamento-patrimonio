@@ -25,7 +25,7 @@ const createInitialForm = () => {
 };
 
 const statusLabel = {
-  available: ["Disponivel", "success"],
+  available: ["Disponível", "success"],
   in_use: ["Em uso", "default"],
   maintenance: ["Manutencao", "warning"],
   defective: ["Defeituoso", "destructive"],
@@ -155,7 +155,7 @@ const AssetsPage = () => {
       resetForm();
       await assets.reload();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel salvar o ativo.");
+      setFeedback(err.message || "Não foi possível salvar o ativo.");
     } finally {
       setSubmitting(false);
     }
@@ -182,16 +182,16 @@ const AssetsPage = () => {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Patrimonio / Tag">
+            <FormField label="Patrimônio / Tag">
               <Input name="tag_code" value={form.tag_code} onChange={handleChange} />
             </FormField>
             <FormField label="Modelo">
               <Input name="model" value={form.model} onChange={handleChange} />
             </FormField>
-            <FormField label="Nome da maquina">
+            <FormField label="Nome da máquina">
               <Input name="host_name" value={form.host_name} onChange={handleChange} placeholder="Ex: LAB01-PC07" />
             </FormField>
-            <FormField label="Dominio">
+            <FormField label="Domínio">
               <Input name="domain_name" value={form.domain_name} onChange={handleChange} placeholder="Ex: finds.local" />
             </FormField>
             <FormField label="Serial">
@@ -232,7 +232,7 @@ const AssetsPage = () => {
               </FormField>
             </div>
             <div className="md:col-span-3">
-              <FormField label="Observacoes">
+              <FormField label="Observações">
                 <Input name="notes" value={form.notes} onChange={handleChange} />
               </FormField>
             </div>
@@ -249,7 +249,7 @@ const AssetsPage = () => {
         <div className="p-4 border-b bg-muted/20 relative">
           <Icon name="search" className="absolute left-7 top-7 text-muted-foreground w-4 h-4" />
           <Input
-            placeholder="Buscar por tag, nome da maquina, dominio ou serial..."
+            placeholder="Buscar por tag, nome da máquina, domínio ou serial..."
             className="pl-9 max-w-sm"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -265,9 +265,9 @@ const AssetsPage = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Patrimonio / Tag</th>
+                  <th>Patrimônio / Tag</th>
                   <th>Maquina</th>
-                  <th>Dominio</th>
+                  <th>Domínio</th>
                   <th>Modelo</th>
                   <th>Localizacao</th>
                   <th>Status</th>

@@ -20,7 +20,7 @@ const createInitialForm = () => {
 };
 
 const statusMap = {
-  available: ["Disponivel", "success"],
+  available: ["Disponível", "success"],
   borrowed: ["Emprestado", "default"],
   maintenance: ["Manutencao", "warning"]
 };
@@ -137,7 +137,7 @@ const BoxesPage = () => {
       reset();
       await boxes.reload();
     } catch (err) {
-      setFeedback(err.message || "Nao foi possivel salvar o carrinho.");
+      setFeedback(err.message || "Não foi possível salvar o carrinho.");
     } finally {
       setSubmitting(false);
     }
@@ -168,7 +168,7 @@ const BoxesPage = () => {
             </FormField>
             <div className="hidden md:block" />
             <div className="md:col-span-2">
-              <FormField label="Descricao">
+              <FormField label="Descrição">
                 <Input name="description" value={form.description} onChange={handleChange} />
               </FormField>
             </div>
