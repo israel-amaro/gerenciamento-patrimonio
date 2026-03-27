@@ -193,18 +193,20 @@ const ReportsPage = () => {
       }
 
       const labelsWithQr = await Promise.all(
-        selectedLabels.map(async (label) => ({
-          ...label,
-          qrValue:
+        selectedLabels.map(async (label) => {
+          const qrValue =
             labelType === "assets"
               ? ensureAssetQrUrl(label.qr_code_value, label.id)
               : labelType === "boxes"
                 ? ensureBoxQrUrl(label.qr_code_value, label.id)
-                : ensureLabQrUrl(label.qr_code_value, label.id)
-        })).map(async (label) => ({
-          ...label,
-          qrPreview: label.qrValue ? await QRCode.toDataURL(label.qrValue, { margin: 1, width: 220 }) : ""
-        }))
+                : ensureLabQrUrl(label.qr_code_value, label.id);
+
+          return {
+            ...label,
+            qrValue,
+            qrPreview: qrValue ? await QRCode.toDataURL(qrValue, { margin: 1, width: 220 }) : ""
+          };
+        })
       );
 
       const title = labelType === "assets" ? "Etiquetas de ativos" : labelType === "boxes" ? "Etiquetas de carrinhos" : "Etiquetas de laboratórios";

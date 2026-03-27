@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { missingSupabaseEnv, supabase, supabaseEnvErrorMessage } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
 
@@ -64,6 +64,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    if (missingSupabaseEnv) {
+      setLoading(false);
+      return undefined;
+    }
+
     let mounted = true;
 
     const initializeAuth = async () => {
@@ -115,6 +120,22 @@ export const AuthProvider = ({ children }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  if (missingSupabaseEnv) {
+    return (
+      <div className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
+        <div className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Configuracao local pendente</p>
+          <h1 className="mt-3 text-2xl font-semibold">O app nao conseguiu iniciar neste computador.</h1>
+          <p className="mt-4 text-sm leading-6 text-slate-700">{supabaseEnvErrorMessage}</p>
+          <p className="mt-3 text-sm leading-6 text-slate-700">
+            Crie um arquivo <code>.env</code> na raiz do projeto com os valores usados no outro computador ou copie
+            <code> .env.example</code> e preencha as credenciais do Supabase.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const signInAdmin = async (email, password) => {
     setLoading(true);
