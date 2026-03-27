@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Button, Card, CardContent, CardHeader, CardTitle, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
 import { auditsApi } from "../lib/api";
@@ -14,32 +15,90 @@ const auditDefaults = {
   notes: ""
 };
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const extractAssetId = (value) => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (uuidPattern.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const lastPart = parts.at(-1) || "";
+    return uuidPattern.test(lastPart) ? lastPart : "";
+  } catch (_error) {
+    const match = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+    return match?.[0] || "";
+  }
+};
+
 const AuditsPage = () => {
+  const { assetId } = useParams();
   const { profile } = useAuth();
-  const [tagCode, setTagCode] = useState("");
+  const [lookupValue, setLookupValue] = useState(assetId || "");
   const [asset, setAsset] = useState(null);
   const [form, setForm] = useState(auditDefaults);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const findAsset = async () => {
+  const findAsset = async (reference = lookupValue) => {
+    const trimmedReference = reference.trim();
+
+    if (!trimmedReference) {
+      setAsset(null);
+      setFeedback("Informe a TAG, o link do QR ou o ID do ativo.");
+      return;
+    }
+
     setFeedback("");
     setLoading(true);
 
     try {
-      const result = await auditsApi.findAssetByTag(tagCode.trim());
-      if (!result) {
-        throw new Error("Nenhum ativo encontrado para a TAG informada.");
+      const parsedAssetId = extractAssetId(trimmedReference);
+      let result = null;
+
+      if (parsedAssetId) {
+        result = await auditsApi.findAssetById(parsedAssetId);
       }
+
+      if (!result) {
+        result = await auditsApi.findAssetByQrValue(trimmedReference);
+      }
+
+      if (!result) {
+        result = await auditsApi.findAssetByTag(trimmedReference);
+      }
+
+      if (!result) {
+        throw new Error("Nenhum ativo encontrado para a referencia informada.");
+      }
+
       setAsset(result);
+      setLookupValue(result.qr_code_value || result.tag_code);
     } catch (err) {
       setAsset(null);
-      setFeedback(err.message || "Não foi possível buscar o ativo.");
+      setFeedback(err.message || "Nao foi possivel buscar o ativo.");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!assetId) {
+      return;
+    }
+
+    setLookupValue(assetId);
+    findAsset(assetId);
+  }, [assetId]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -71,10 +130,10 @@ const AuditsPage = () => {
 
       setFeedback("Auditoria salva com sucesso.");
       setAsset(null);
-      setTagCode("");
+      setLookupValue("");
       setForm(auditDefaults);
     } catch (err) {
-      setFeedback(err.message || "Não foi possível salvar a auditoria.");
+      setFeedback(err.message || "Nao foi possivel salvar a auditoria.");
     } finally {
       setSaving(false);
     }
@@ -82,7 +141,7 @@ const AuditsPage = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight">Auditoria Técnica com QR Code</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Auditoria Tecnica com QR Code</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="border-b bg-muted/20 flex flex-row items-center gap-2">
@@ -94,12 +153,16 @@ const AuditsPage = () => {
               <Icon name="qr-code" className="w-10 h-10 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground">
-              Abra este app no celular para escanear a etiqueta do equipamento diretamente.
+              Escaneie o link do QR ou cole aqui a URL gerada no cadastro do ativo.
             </p>
-            <Button className="w-full" type="button" disabled>Abrir Câmera</Button>
+            <Button className="w-full" type="button" disabled>Abrir Camera</Button>
             <div className="flex w-full items-center gap-2 pt-4 border-t">
-              <Input placeholder="Ou digite a TAG..." value={tagCode} onChange={(event) => setTagCode(event.target.value)} />
-              <Button variant="secondary" type="button" onClick={findAsset}>OK</Button>
+              <Input
+                placeholder="Cole o link do QR, ID do ativo ou TAG..."
+                value={lookupValue}
+                onChange={(event) => setLookupValue(event.target.value)}
+              />
+              <Button variant="secondary" type="button" onClick={() => findAsset()}>OK</Button>
             </div>
             {loading ? <LoadingState label="Buscando ativo..." /> : null}
             {feedback ? <InlineMessage tone={feedback.includes("sucesso") ? "success" : "error"}>{feedback}</InlineMessage> : null}
@@ -108,20 +171,22 @@ const AuditsPage = () => {
 
         <Card className={!asset ? "opacity-50 pointer-events-none" : ""}>
           <CardHeader className="border-b bg-muted/20">
-            <CardTitle>{asset ? `Inspeção ${asset.tag_code}` : "Inspeção"}</CardTitle>
+            <CardTitle>{asset ? `Inspecao ${asset.tag_code}` : "Inspecao"}</CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
             {asset ? (
               <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="text-sm">
+                <div className="text-sm space-y-1">
                   <div className="font-medium">{asset.model}</div>
-                  <div className="text-muted-foreground">{asset.labs?.name || "Sem laboratório"}</div>
+                  <div className="text-muted-foreground">{asset.host_name || "Sem nome de maquina"}</div>
+                  <div className="text-muted-foreground">{asset.domain_name || "Sem dominio"}</div>
+                  <div className="text-muted-foreground">{asset.labs?.name || "Sem laboratorio"}</div>
                 </div>
                 <FormField label="Status geral">
                   <Select name="status" value={form.status} onChange={handleChange}>
                     <option value="functioning_normally">Funcionando normalmente</option>
                     <option value="functioning_with_issue">Funcionando com falha</option>
-                    <option value="not_functioning">Não está funcionando</option>
+                    <option value="not_functioning">Nao esta funcionando</option>
                     <option value="missing">Extraviado</option>
                   </Select>
                 </FormField>
@@ -131,16 +196,16 @@ const AuditsPage = () => {
                   ["keyboard_ok", "Teclado OK"],
                   ["mouse_ok", "Mouse OK"],
                   ["monitor_ok", "Monitor OK"],
-                  ["no_physical_damage", "Sem dano físico"]
+                  ["no_physical_damage", "Sem dano fisico"]
                 ].map(([name, label]) => (
                   <FormField key={name} label={label}>
                     <Select value={String(form[name])} onChange={(event) => handleBooleanChange(name, event.target.value)}>
                       <option value="true">Sim</option>
-                      <option value="false">Não</option>
+                      <option value="false">Nao</option>
                     </Select>
                   </FormField>
                 ))}
-                <FormField label="Observações">
+                <FormField label="Observacoes">
                   <Textarea name="notes" value={form.notes} onChange={handleChange} />
                 </FormField>
                 <Button type="submit" className="w-full" disabled={saving}>{saving ? "Salvando..." : "Salvar Auditoria"}</Button>

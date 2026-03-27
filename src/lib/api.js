@@ -49,7 +49,7 @@ export const assetsApi = {
       .order("created_at", { ascending: false });
 
     if (search) {
-      query = query.or(`tag_code.ilike.%${search}%,serial_number.ilike.%${search}%,model.ilike.%${search}%`);
+      query = query.or(`tag_code.ilike.%${search}%,serial_number.ilike.%${search}%,model.ilike.%${search}%,host_name.ilike.%${search}%,domain_name.ilike.%${search}%`);
     }
 
     return unwrap(query);
@@ -146,11 +146,29 @@ export const checklistsApi = {
 };
 
 export const auditsApi = {
+  findAssetById(assetId) {
+    return unwrap(
+      supabase
+        .from("assets")
+        .select("id, tag_code, qr_code_value, host_name, domain_name, model, status, labs(id, name)")
+        .eq("id", assetId)
+        .maybeSingle()
+    );
+  },
+  findAssetByQrValue(qrCodeValue) {
+    return unwrap(
+      supabase
+        .from("assets")
+        .select("id, tag_code, qr_code_value, host_name, domain_name, model, status, labs(id, name)")
+        .eq("qr_code_value", qrCodeValue)
+        .maybeSingle()
+    );
+  },
   findAssetByTag(tagCode) {
     return unwrap(
       supabase
         .from("assets")
-        .select("id, tag_code, model, status, labs(id, name)")
+        .select("id, tag_code, qr_code_value, host_name, domain_name, model, status, labs(id, name)")
         .eq("tag_code", tagCode)
         .maybeSingle()
     );

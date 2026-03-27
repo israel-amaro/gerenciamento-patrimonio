@@ -22,6 +22,7 @@ const App = () => (
       <Route path="loans" element={<LoansPage />} />
       <Route path="checklists" element={<ChecklistsPage />} />
       <Route path="audits" element={<RoleRoute roles={["admin"]}><AuditsPage /></RoleRoute>} />
+      <Route path="audits/:assetId" element={<RoleRoute roles={["admin"]}><AuditsPage /></RoleRoute>} />
       <Route path="incidents" element={<RoleRoute roles={["admin"]}><IncidentsPage /></RoleRoute>} />
       <Route path="reports" element={<RoleRoute roles={["admin"]}><ReportsPage /></RoleRoute>} />
     </Route>

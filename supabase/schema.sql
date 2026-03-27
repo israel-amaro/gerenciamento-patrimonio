@@ -49,6 +49,8 @@ CREATE TABLE public.assets (
   tag_code TEXT NOT NULL UNIQUE,
   qr_code_value TEXT NOT NULL UNIQUE,
   serial_number TEXT,
+  host_name TEXT,
+  domain_name TEXT,
   model TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'in_use', 'maintenance', 'defective', 'missing', 'retired')),
   lab_id UUID REFERENCES public.labs(id),
