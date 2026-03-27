@@ -4,7 +4,9 @@ import qrScannerWorkerPath from "qr-scanner/qr-scanner-worker.min?url";
 import { useParams } from "react-router-dom";
 import { Button, Card, CardContent, CardHeader, CardTitle, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
+import { useAsyncData } from "../hooks/useAsyncData";
 import { auditsApi, incidentsApi } from "../lib/api";
+import { formatDateTime } from "../lib/utils";
 
 QrScanner.WORKER_PATH = qrScannerWorkerPath;
 
@@ -116,8 +118,7 @@ const buildIncidentPayload = (targetType, target, form) => {
     issues.push(`Status: ${form.status}`);
   }
 
-  const checks = targetConfig[targetType].checks;
-  checks.forEach(([field, label]) => {
+  targetConfig[targetType].checks.forEach(([field, label]) => {
     if (!form[field]) {
       issues.push(label);
     }
@@ -156,6 +157,7 @@ const AuditsPage = () => {
   const [saving, setSaving] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const history = useAsyncData(() => auditsApi.list({ limit: 12 }), []);
 
   const stopScanner = async () => {
     if (scannerRef.current) {
@@ -324,8 +326,8 @@ const AuditsPage = () => {
       };
 
       const audit = await auditsApi.create(payload);
-
       const incident = buildIncidentPayload(targetType, target, form);
+
       if (incident) {
         await incidentsApi.createEvent({
           ...incident,
@@ -338,6 +340,7 @@ const AuditsPage = () => {
       setTarget(null);
       setLookupValue("");
       setForm(auditDefaults);
+      await history.reload();
     } catch (err) {
       setFeedback(err.message || "Não foi possível salvar a auditoria.");
     } finally {
@@ -346,6 +349,13 @@ const AuditsPage = () => {
   };
 
   const config = targetConfig[targetType];
+  const getHistoryType = (audit) => {
+    if (audit.box_id) return "Carrinho";
+    if (audit.lab_id) return "Laboratório";
+    return "Ativo";
+  };
+  const getHistoryTarget = (audit) => audit.assets?.tag_code || audit.boxes?.name || audit.labs?.name || "-";
+  const getHistoryAuditor = (audit) => audit.profiles?.full_name || "Admin";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -454,6 +464,37 @@ const AuditsPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="border-b bg-muted/20">
+          <CardTitle>Histórico de auditorias técnicas</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {history.loading ? <div className="p-6"><LoadingState label="Carregando histórico..." /></div> : null}
+          {history.error ? <div className="p-6"><InlineMessage tone="error">{history.error}</InlineMessage></div> : null}
+          {!history.loading && !history.error && !history.data?.length ? (
+            <div className="p-6 text-sm text-muted-foreground">Nenhuma auditoria registrada até o momento.</div>
+          ) : null}
+          {history.data?.length ? (
+            <div className="divide-y">
+              {history.data.map((audit) => (
+                <div key={audit.id} className="grid gap-3 p-4 md:grid-cols-[110px_1fr_180px_150px] md:items-start">
+                  <div className="text-sm font-medium">{getHistoryType(audit)}</div>
+                  <div className="space-y-1">
+                    <div className="font-medium">{getHistoryTarget(audit)}</div>
+                    <div className="text-sm text-muted-foreground">{audit.notes || "Sem observações registradas."}</div>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div>{audit.status}</div>
+                    <div className="text-muted-foreground">{getHistoryAuditor(audit)}</div>
+                  </div>
+                  <div className="text-sm text-muted-foreground">{formatDateTime(audit.audited_at)}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 };

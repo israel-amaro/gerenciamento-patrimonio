@@ -8,8 +8,10 @@ alter table public.boxes add column if not exists lab_id uuid references public.
 alter table public.boxes add column if not exists expected_asset_count integer;
 
 alter table public.loans alter column box_id drop not null;
+alter table public.loans alter column room_id drop not null;
 alter table public.loans add column if not exists asset_id uuid references public.assets(id);
 alter table public.loans add column if not exists lab_id uuid references public.labs(id);
+alter table public.loans add column if not exists room_name text;
 
 alter table public.loans drop constraint if exists loans_target_check;
 alter table public.loans add constraint loans_target_check check (
@@ -219,10 +221,82 @@ begin
 end;
 $$;
 
+create or replace function public.request_loan(
+  p_box_id uuid,
+  p_responsible_name text,
+  p_room_id uuid,
+  p_room_name text,
+  p_session_class text,
+  p_expected_return_at timestamptz,
+  p_notes text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_loan_id uuid;
+  v_box_status text;
+begin
+  select status
+  into v_box_status
+  from public.boxes
+  where id = p_box_id;
+
+  if v_box_status is null then
+    raise exception 'Caixa nao encontrada.';
+  end if;
+
+  if v_box_status <> 'available' then
+    raise exception 'A caixa selecionada nao esta disponivel.';
+  end if;
+
+  if coalesce(btrim(p_responsible_name), '') = '' then
+    raise exception 'Informe o responsavel.';
+  end if;
+
+  if coalesce(btrim(p_session_class), '') = '' then
+    raise exception 'Informe a turma ou disciplina.';
+  end if;
+
+  insert into public.loans (
+    box_id,
+    responsible_name,
+    room_id,
+    room_name,
+    session_class,
+    expected_return_at,
+    notes,
+    status,
+    created_by
+  )
+  values (
+    p_box_id,
+    btrim(p_responsible_name),
+    p_room_id,
+    nullif(btrim(coalesce(p_room_name, '')), ''),
+    btrim(p_session_class),
+    p_expected_return_at,
+    nullif(btrim(coalesce(p_notes, '')), ''),
+    'active',
+    auth.uid()
+  )
+  returning id into v_loan_id;
+
+  update public.boxes
+  set status = 'borrowed'
+  where id = p_box_id;
+
+  return v_loan_id;
+end;
+$$;
+
 create or replace function public.request_loan_by_asset(
   p_asset_id uuid,
   p_responsible_name text,
   p_room_id uuid,
+  p_room_name text,
   p_session_class text,
   p_expected_return_at timestamptz,
   p_notes text default null
@@ -262,6 +336,7 @@ begin
     asset_id,
     responsible_name,
     room_id,
+    room_name,
     session_class,
     expected_return_at,
     notes,
@@ -272,6 +347,7 @@ begin
     p_asset_id,
     btrim(p_responsible_name),
     p_room_id,
+    nullif(btrim(coalesce(p_room_name, '')), ''),
     btrim(p_session_class),
     p_expected_return_at,
     nullif(btrim(coalesce(p_notes, '')), ''),
@@ -288,6 +364,7 @@ create or replace function public.request_loan_by_lab(
   p_lab_id uuid,
   p_responsible_name text,
   p_room_id uuid,
+  p_room_name text,
   p_session_class text,
   p_expected_return_at timestamptz,
   p_notes text default null
@@ -327,6 +404,7 @@ begin
     lab_id,
     responsible_name,
     room_id,
+    room_name,
     session_class,
     expected_return_at,
     notes,
@@ -337,6 +415,7 @@ begin
     p_lab_id,
     btrim(p_responsible_name),
     p_room_id,
+    nullif(btrim(coalesce(p_room_name, '')), ''),
     btrim(p_session_class),
     p_expected_return_at,
     nullif(btrim(coalesce(p_notes, '')), ''),
@@ -504,10 +583,12 @@ as $$
   group by l.id, ln.id
 $$;
 
-grant execute on function public.request_loan_by_asset(uuid, text, uuid, text, timestamptz, text) to authenticated;
-grant execute on function public.request_loan_by_asset(uuid, text, uuid, text, timestamptz, text) to anon;
-grant execute on function public.request_loan_by_lab(uuid, text, uuid, text, timestamptz, text) to authenticated;
-grant execute on function public.request_loan_by_lab(uuid, text, uuid, text, timestamptz, text) to anon;
+grant execute on function public.request_loan(uuid, text, uuid, text, text, timestamptz, text) to authenticated;
+grant execute on function public.request_loan(uuid, text, uuid, text, text, timestamptz, text) to anon;
+grant execute on function public.request_loan_by_asset(uuid, text, uuid, text, text, timestamptz, text) to authenticated;
+grant execute on function public.request_loan_by_asset(uuid, text, uuid, text, text, timestamptz, text) to anon;
+grant execute on function public.request_loan_by_lab(uuid, text, uuid, text, text, timestamptz, text) to authenticated;
+grant execute on function public.request_loan_by_lab(uuid, text, uuid, text, text, timestamptz, text) to anon;
 grant execute on function public.create_incident_event(uuid, uuid, uuid, uuid, text, text, text, text, uuid) to authenticated;
 grant execute on function public.create_incident_event(uuid, uuid, uuid, uuid, text, text, text, text, uuid) to anon;
 grant execute on function public.get_public_asset_context(uuid) to authenticated;

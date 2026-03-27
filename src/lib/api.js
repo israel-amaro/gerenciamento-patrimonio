@@ -97,7 +97,7 @@ export const loansApi = {
     const { search = "", dateFrom = "", dateTo = "", targetType = "" } = typeof filters === "string" ? { search: filters } : filters;
     let query = supabase
       .from("loans")
-      .select("id, box_id, asset_id, lab_id, room_id, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
+      .select("id, box_id, asset_id, lab_id, room_id, room_name, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
       .order("borrowed_at", { ascending: false });
 
     if (search) {
@@ -163,6 +163,26 @@ export const checklistsApi = {
 };
 
 export const auditsApi = {
+  list(filters = {}) {
+    let query = supabase
+      .from("audits")
+      .select("id, asset_id, box_id, lab_id, audited_at, status, notes, auditor_id, profiles(full_name), assets(tag_code, model), boxes(name), labs(name)")
+      .order("audited_at", { ascending: false });
+
+    if (filters.targetType === "asset") {
+      query = query.not("asset_id", "is", null);
+    } else if (filters.targetType === "box") {
+      query = query.not("box_id", "is", null);
+    } else if (filters.targetType === "lab") {
+      query = query.not("lab_id", "is", null);
+    }
+
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+
+    return unwrap(query);
+  },
   findAssetById(assetId) {
     return unwrap(
       supabase
@@ -383,7 +403,8 @@ export const publicScanApi = {
       supabase.rpc("request_loan", {
         p_box_id: payload.box_id,
         p_responsible_name: payload.responsible_name,
-        p_room_id: payload.room_id,
+        p_room_id: payload.room_id || null,
+        p_room_name: payload.room_name || null,
         p_session_class: payload.session_class,
         p_expected_return_at: payload.expected_return_at,
         p_notes: payload.notes
@@ -395,7 +416,8 @@ export const publicScanApi = {
       supabase.rpc("request_loan_by_lab", {
         p_lab_id: payload.lab_id,
         p_responsible_name: payload.responsible_name,
-        p_room_id: payload.room_id,
+        p_room_id: payload.room_id || null,
+        p_room_name: payload.room_name || null,
         p_session_class: payload.session_class,
         p_expected_return_at: payload.expected_return_at,
         p_notes: payload.notes

@@ -87,7 +87,8 @@ CREATE TABLE public.loans (
   lab_id UUID REFERENCES public.labs(id),
   professor_id UUID REFERENCES public.profiles(id),
   responsible_name TEXT NOT NULL,
-  room_id UUID NOT NULL REFERENCES public.rooms(id),
+  room_id UUID REFERENCES public.rooms(id),
+  room_name TEXT,
   session_class TEXT NOT NULL,
   borrowed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expected_return_at TIMESTAMPTZ NOT NULL,
@@ -242,6 +243,7 @@ CREATE OR REPLACE FUNCTION public.request_loan(
   p_box_id UUID,
   p_responsible_name TEXT,
   p_room_id UUID,
+  p_room_name TEXT,
   p_session_class TEXT,
   p_expected_return_at TIMESTAMPTZ,
   p_notes TEXT DEFAULT NULL
@@ -280,6 +282,7 @@ BEGIN
     box_id,
     responsible_name,
     room_id,
+    room_name,
     session_class,
     expected_return_at,
     notes,
@@ -290,6 +293,7 @@ BEGIN
     p_box_id,
     BTRIM(p_responsible_name),
     p_room_id,
+    NULLIF(BTRIM(COALESCE(p_room_name, '')), ''),
     BTRIM(p_session_class),
     p_expected_return_at,
     NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
@@ -450,6 +454,7 @@ CREATE OR REPLACE FUNCTION public.request_loan_by_asset(
   p_asset_id UUID,
   p_responsible_name TEXT,
   p_room_id UUID,
+  p_room_name TEXT,
   p_session_class TEXT,
   p_expected_return_at TIMESTAMPTZ,
   p_notes TEXT DEFAULT NULL
@@ -478,6 +483,7 @@ BEGIN
     v_box_id,
     p_responsible_name,
     p_room_id,
+    p_room_name,
     p_session_class,
     p_expected_return_at,
     p_notes
@@ -588,6 +594,7 @@ CREATE OR REPLACE FUNCTION public.request_loan_by_asset(
   p_asset_id UUID,
   p_responsible_name TEXT,
   p_room_id UUID,
+  p_room_name TEXT,
   p_session_class TEXT,
   p_expected_return_at TIMESTAMPTZ,
   p_notes TEXT DEFAULT NULL
@@ -629,6 +636,7 @@ BEGIN
     asset_id,
     responsible_name,
     room_id,
+    room_name,
     session_class,
     expected_return_at,
     notes,
@@ -639,6 +647,7 @@ BEGIN
     p_asset_id,
     BTRIM(p_responsible_name),
     p_room_id,
+    NULLIF(BTRIM(COALESCE(p_room_name, '')), ''),
     BTRIM(p_session_class),
     p_expected_return_at,
     NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
@@ -655,6 +664,7 @@ CREATE OR REPLACE FUNCTION public.request_loan_by_lab(
   p_lab_id UUID,
   p_responsible_name TEXT,
   p_room_id UUID,
+  p_room_name TEXT,
   p_session_class TEXT,
   p_expected_return_at TIMESTAMPTZ,
   p_notes TEXT DEFAULT NULL
@@ -696,6 +706,7 @@ BEGIN
     lab_id,
     responsible_name,
     room_id,
+    room_name,
     session_class,
     expected_return_at,
     notes,
@@ -706,6 +717,7 @@ BEGIN
     p_lab_id,
     BTRIM(p_responsible_name),
     p_room_id,
+    NULLIF(BTRIM(COALESCE(p_room_name, '')), ''),
     BTRIM(p_session_class),
     p_expected_return_at,
     NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
@@ -926,17 +938,17 @@ ON public.incidents FOR ALL TO authenticated
 USING (public.is_admin())
 WITH CHECK (public.is_admin());
 
-GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.request_loan_by_lab(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_lab(UUID, TEXT, UUID, TEXT, TEXT, TIMESTAMPTZ, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.return_loan(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_public_checklist(UUID, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_asset_context(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_box_context(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_lab_context(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
-GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
-GRANT EXECUTE ON FUNCTION public.request_loan_by_lab(UUID, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.request_loan(UUID, TEXT, UUID, TEXT, TEXT, TIMESTAMPTZ, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_asset(UUID, TEXT, UUID, TEXT, TEXT, TIMESTAMPTZ, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.request_loan_by_lab(UUID, TEXT, UUID, TEXT, TEXT, TIMESTAMPTZ, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.return_loan(UUID) TO anon;
 GRANT EXECUTE ON FUNCTION public.submit_public_checklist(UUID, TEXT, TEXT, TEXT, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_asset_context(UUID) TO anon;

@@ -16,6 +16,7 @@ const createBorrowForm = () => {
   return {
     responsible_name: "",
     room_id: "",
+    room_name: "",
     session_class: "",
     expected_return_at: localIso,
     notes: "",
@@ -92,6 +93,17 @@ const PublicBoxPage = () => {
 
   const handleBorrowChange = (event) => {
     const { name, value } = event.target;
+
+    if (name === "room_id") {
+      const selectedRoom = rooms.find((room) => room.id === value);
+      setBorrowForm((current) => ({
+        ...current,
+        room_id: value,
+        room_name: selectedRoom?.name || current.room_name
+      }));
+      return;
+    }
+
     setBorrowForm((current) => ({ ...current, [name]: value }));
   };
 
@@ -106,14 +118,15 @@ const PublicBoxPage = () => {
     setBorrowing(true);
 
     try {
-      if (!borrowForm.responsible_name.trim() || !borrowForm.room_id || !borrowForm.session_class.trim() || !borrowForm.expected_return_at) {
-        throw new Error("Preencha responsável, sala, turma e previsão de devolução.");
+      if (!borrowForm.responsible_name.trim() || !borrowForm.session_class.trim() || !borrowForm.expected_return_at) {
+        throw new Error("Preencha responsável, turma e previsão de devolução.");
       }
 
       const loanId = await publicScanApi.requestLoanByBox({
         box_id: context.box_id,
         responsible_name: borrowForm.responsible_name.trim(),
-        room_id: borrowForm.room_id,
+        room_id: borrowForm.room_id || null,
+        room_name: borrowForm.room_name.trim() || null,
         session_class: borrowForm.session_class.trim(),
         expected_return_at: new Date(borrowForm.expected_return_at).toISOString(),
         notes: borrowForm.notes.trim() || null
@@ -194,7 +207,7 @@ const PublicBoxPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-6xl p-4 md:p-8 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <div className="space-y-2">
           <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Acesso público por QR Code</div>
           <h1 className="text-3xl font-bold tracking-tight">Carrinho para retirada geral</h1>
@@ -205,12 +218,12 @@ const PublicBoxPage = () => {
         {loading ? <LoadingState label="Carregando carrinho..." /> : null}
 
         {context ? (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <Card className="xl:col-span-1">
               <CardHeader className="border-b bg-muted/20">
                 <CardTitle>Dados do carrinho</CardTitle>
               </CardHeader>
-              <CardContent className="pt-6 space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div>
                   <div className="text-xs uppercase text-muted-foreground">Nome</div>
                   <div className="font-semibold">{context.box_name}</div>
@@ -232,7 +245,7 @@ const PublicBoxPage = () => {
                   <div className="text-xs uppercase text-muted-foreground">Esperado</div>
                   <div>{context.expected_asset_count || "-"}</div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex flex-wrap gap-2">
                   <Badge variant={context.active_loan_id ? "warning" : "success"}>
                     {context.active_loan_id ? "Emprestado" : "Disponível"}
                   </Badge>
@@ -243,14 +256,14 @@ const PublicBoxPage = () => {
               </CardContent>
             </Card>
 
-            <div className="xl:col-span-2 space-y-6">
+            <div className="space-y-6 xl:col-span-2">
               {context.active_loan_id ? (
                 <Card>
                   <CardHeader className="border-b bg-muted/20">
                     <CardTitle>Devolução do carrinho</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
-                    <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleReturn}>
+                    <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={handleReturn}>
                       <FormField label="Responsável">
                         <Input name="responsible_name" value={returnForm.responsible_name} onChange={handleReturnChange} />
                       </FormField>
@@ -269,7 +282,7 @@ const PublicBoxPage = () => {
                           <Textarea name="checklist_notes" value={returnForm.checklist_notes} onChange={handleReturnChange} />
                         </FormField>
                       </div>
-                      <div className="md:col-span-2 flex justify-end">
+                      <div className="flex justify-end md:col-span-2">
                         <Button type="submit" disabled={returning}>{returning ? "Salvando..." : "Devolver e salvar checklist"}</Button>
                       </div>
                     </form>
@@ -281,17 +294,20 @@ const PublicBoxPage = () => {
                     <CardTitle>Novo empréstimo do carrinho</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
-                    <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleBorrow}>
+                    <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={handleBorrow}>
                       <FormField label="Responsável">
                         <Input name="responsible_name" value={borrowForm.responsible_name} onChange={handleBorrowChange} placeholder="Ex: Prof. Maria" />
                       </FormField>
-                      <FormField label="Sala">
+                      <FormField label="Sala cadastrada">
                         <Select name="room_id" value={borrowForm.room_id} onChange={handleBorrowChange} disabled={roomsLoading}>
                           <option value="">Selecione</option>
                           {rooms.map((room) => (
                             <option key={room.id} value={room.id}>{room.name}</option>
                           ))}
                         </Select>
+                      </FormField>
+                      <FormField label="Sala / Local livre">
+                        <Input name="room_name" value={borrowForm.room_name} onChange={handleBorrowChange} placeholder="Ex: Sala 7, Auditório, Bloco C" />
                       </FormField>
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={borrowForm.session_class} onChange={handleBorrowChange} />
@@ -316,7 +332,7 @@ const PublicBoxPage = () => {
                           <Textarea name="checklist_notes" value={borrowForm.checklist_notes} onChange={handleBorrowChange} />
                         </FormField>
                       </div>
-                      <div className="md:col-span-2 flex justify-end">
+                      <div className="flex justify-end md:col-span-2">
                         <Button type="submit" disabled={borrowing}>{borrowing ? "Salvando..." : "Emprestar e salvar checklist"}</Button>
                       </div>
                     </form>
@@ -328,7 +344,7 @@ const PublicBoxPage = () => {
                 <CardHeader className="border-b bg-muted/20">
                   <CardTitle>Resumo do uso</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-3">
                   <div>
                     <div className="text-xs uppercase text-muted-foreground">Responsável atual</div>
                     <div>{context.responsible_name || "-"}</div>
