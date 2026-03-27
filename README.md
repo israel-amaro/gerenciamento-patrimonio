@@ -72,3 +72,4 @@ Sistema de controle patrimonial para instituições de ensino, com foco em ativo
 - Histórico de movimentação
 - Relatórios em PDF por período
 - Impressão de etiquetas com QR Code
+- Instalação como PWA em celular, tablet e desktop
