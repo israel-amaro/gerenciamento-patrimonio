@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { incidentsApi, loansApi, lookupApi, publicScanApi } from "../lib/api";
-import { formatDateTime } from "../lib/utils";
+import { buildLocationOptions, formatAssetIdentifier, formatDateTime } from "../lib/utils";
 
 const checklistOptions = [
   { value: "ok", label: "Tudo OK" },
@@ -15,13 +15,16 @@ const createBorrowForm = () => {
 
   return {
     responsible_name: "",
+    location_key: "",
     room_id: "",
+    location_lab_id: "",
     room_name: "",
     session_class: "",
     expected_return_at: localIso,
     notes: "",
     checklist_status: "ok",
-    checklist_notes: ""
+    checklist_notes: "",
+    selected_asset_ids: []
   };
 };
 
@@ -36,28 +39,40 @@ const PublicBoxPage = () => {
   const { boxId } = useParams();
   const [context, setContext] = useState(null);
   const [rooms, setRooms] = useState([]);
-  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [labs, setLabs] = useState([]);
+  const [availableAssets, setAvailableAssets] = useState([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
   const [borrowForm, setBorrowForm] = useState(createBorrowForm);
   const [returnForm, setReturnForm] = useState(createReturnForm(null));
+  const [showAssetsSection, setShowAssetsSection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState("");
   const [borrowing, setBorrowing] = useState(false);
   const [returning, setReturning] = useState(false);
+
+  const locationOptions = useMemo(() => buildLocationOptions({ rooms, labs }), [rooms, labs]);
+  const selectedAssetsCount = borrowForm.selected_asset_ids.length;
 
   const loadContext = async () => {
     setLoading(true);
     setFeedback("");
 
     try {
-      const data = await publicScanApi.getBoxContext(boxId);
-      if (!data) {
+      const [boxContext, boxAssets] = await Promise.all([
+        publicScanApi.getBoxContext(boxId),
+        publicScanApi.getPublicBoxAssets(boxId)
+      ]);
+
+      if (!boxContext) {
         throw new Error("Carrinho não encontrado para este QR Code.");
       }
 
-      setContext(data);
-      setReturnForm(createReturnForm(data));
+      setContext(boxContext);
+      setAvailableAssets(boxAssets || []);
+      setReturnForm(createReturnForm(boxContext));
     } catch (err) {
       setContext(null);
+      setAvailableAssets([]);
       setFeedback(err.message || "Não foi possível carregar o carrinho.");
     } finally {
       setLoading(false);
@@ -71,20 +86,21 @@ const PublicBoxPage = () => {
   useEffect(() => {
     let active = true;
 
-    const loadRooms = async () => {
+    const loadLocations = async () => {
       try {
-        const data = await lookupApi.rooms();
+        const data = await lookupApi.loanLocations();
         if (active) {
-          setRooms(data);
+          setRooms(data.rooms || []);
+          setLabs(data.labs || []);
         }
       } finally {
         if (active) {
-          setRoomsLoading(false);
+          setLocationsLoading(false);
         }
       }
     };
 
-    loadRooms();
+    loadLocations();
 
     return () => {
       active = false;
@@ -94,12 +110,14 @@ const PublicBoxPage = () => {
   const handleBorrowChange = (event) => {
     const { name, value } = event.target;
 
-    if (name === "room_id") {
-      const selectedRoom = rooms.find((room) => room.id === value);
+    if (name === "location_key") {
+      const selectedLocation = locationOptions.find((location) => location.key === value);
       setBorrowForm((current) => ({
         ...current,
-        room_id: value,
-        room_name: selectedRoom?.name || current.room_name
+        location_key: value,
+        room_id: selectedLocation?.type === "room" ? selectedLocation.id : "",
+        location_lab_id: selectedLocation?.type === "lab" ? selectedLocation.id : "",
+        room_name: selectedLocation?.name || ""
       }));
       return;
     }
@@ -110,6 +128,26 @@ const PublicBoxPage = () => {
   const handleReturnChange = (event) => {
     const { name, value } = event.target;
     setReturnForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const toggleAssetSelection = (assetId) => {
+    setBorrowForm((current) => ({
+      ...current,
+      selected_asset_ids: current.selected_asset_ids.includes(assetId)
+        ? current.selected_asset_ids.filter((id) => id !== assetId)
+        : [...current.selected_asset_ids, assetId]
+    }));
+  };
+
+  const handleSelectAllAssets = () => {
+    setBorrowForm((current) => ({
+      ...current,
+      selected_asset_ids: availableAssets.map((asset) => asset.asset_id)
+    }));
+  };
+
+  const handleClearAssets = () => {
+    setBorrowForm((current) => ({ ...current, selected_asset_ids: [] }));
   };
 
   const handleBorrow = async (event) => {
@@ -126,10 +164,12 @@ const PublicBoxPage = () => {
         box_id: context.box_id,
         responsible_name: borrowForm.responsible_name.trim(),
         room_id: borrowForm.room_id || null,
-        room_name: borrowForm.room_name.trim() || null,
+        location_lab_id: borrowForm.location_lab_id || null,
+        room_name: borrowForm.room_name || null,
         session_class: borrowForm.session_class.trim(),
         expected_return_at: new Date(borrowForm.expected_return_at).toISOString(),
-        notes: borrowForm.notes.trim() || null
+        notes: borrowForm.notes.trim() || null,
+        selected_asset_ids: borrowForm.selected_asset_ids
       });
 
       await publicScanApi.submitBoxChecklist({
@@ -154,6 +194,7 @@ const PublicBoxPage = () => {
       }
 
       setBorrowForm(createBorrowForm());
+      setShowAssetsSection(false);
       setFeedback("Retirada do carrinho registrada com sucesso.");
       await loadContext();
     } catch (err) {
@@ -299,16 +340,58 @@ const PublicBoxPage = () => {
                         <Input name="responsible_name" value={borrowForm.responsible_name} onChange={handleBorrowChange} placeholder="Ex: Prof. Maria" />
                       </FormField>
                       <FormField label="Sala cadastrada">
-                        <Select name="room_id" value={borrowForm.room_id} onChange={handleBorrowChange} disabled={roomsLoading}>
+                        <Select name="location_key" value={borrowForm.location_key} onChange={handleBorrowChange} disabled={locationsLoading}>
                           <option value="">Selecione</option>
-                          {rooms.map((room) => (
-                            <option key={room.id} value={room.id}>{room.name}</option>
+                          {locationOptions.map((location) => (
+                            <option key={location.key} value={location.key}>{location.label}</option>
                           ))}
                         </Select>
                       </FormField>
-                      <FormField label="Sala / Local livre">
-                        <Input name="room_name" value={borrowForm.room_name} onChange={handleBorrowChange} placeholder="Ex: Sala 7, Auditório, Bloco C" />
-                      </FormField>
+                      <div className="md:col-span-2">
+                        <div className="rounded-md border border-border bg-white">
+                          <button
+                            type="button"
+                            onClick={() => setShowAssetsSection((current) => !current)}
+                            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium"
+                          >
+                            <span>Ativos utilizados no empréstimo</span>
+                            <span className="text-muted-foreground">{showAssetsSection ? "Recolher" : "Expandir"}</span>
+                          </button>
+                          {showAssetsSection ? (
+                            <div className="space-y-3 border-t px-4 py-3">
+                              {availableAssets.length === 0 ? (
+                                <div className="text-sm text-muted-foreground">Nenhum ativo vinculado a este carrinho.</div>
+                              ) : (
+                                <>
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="text-sm text-muted-foreground">{selectedAssetsCount} de {availableAssets.length} ativos selecionados</div>
+                                    <div className="flex gap-2">
+                                      <Button type="button" variant="ghost" size="sm" onClick={handleSelectAllAssets}>Selecionar todos</Button>
+                                      <Button type="button" variant="ghost" size="sm" onClick={handleClearAssets}>Desmarcar todos</Button>
+                                    </div>
+                                  </div>
+                                  <div className="max-h-72 space-y-2 overflow-y-auto">
+                                    {availableAssets.map((asset) => {
+                                      const selected = borrowForm.selected_asset_ids.includes(asset.asset_id);
+                                      return (
+                                        <label key={asset.asset_id} className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm ${selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}>
+                                          <input
+                                            type="checkbox"
+                                            checked={selected}
+                                            onChange={() => toggleAssetSelection(asset.asset_id)}
+                                            className="mt-1 h-4 w-4 rounded border-border"
+                                          />
+                                          <span>{formatAssetIdentifier(asset)}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={borrowForm.session_class} onChange={handleBorrowChange} />
                       </FormField>

@@ -1,18 +1,21 @@
-import { useState } from "react";
-import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState, Select } from "../components/ui";
+import { useMemo, useState } from "react";
+import { Badge, Button, Card, EmptyState, FormField, Icon, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { loansApi, lookupApi } from "../lib/api";
-import { formatDateTime } from "../lib/utils";
+import { buildLocationOptions, formatAssetIdentifier, formatDateTime } from "../lib/utils";
 
-const initialForm = {
+const createInitialForm = () => ({
   box_id: "",
   responsible_name: "",
+  location_key: "",
   room_id: "",
+  location_lab_id: "",
   room_name: "",
   session_class: "",
   expected_return_at: "",
-  notes: ""
-};
+  notes: "",
+  selected_asset_ids: []
+});
 
 const statusMap = {
   active: ["Em andamento", "default"],
@@ -33,7 +36,8 @@ const LoansPage = () => {
   const [dateTo, setDateTo] = useState("");
   const [targetType, setTargetType] = useState("all");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(initialForm);
+  const [showAssetsSection, setShowAssetsSection] = useState(false);
+  const [form, setForm] = useState(createInitialForm);
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,6 +47,18 @@ const LoansPage = () => {
     return { boxes, rooms, assets, labs };
   }, []);
 
+  const locationOptions = useMemo(
+    () => buildLocationOptions({ rooms: lookups.data?.rooms || [], labs: lookups.data?.labs || [] }),
+    [lookups.data]
+  );
+
+  const selectedBoxAssets = useMemo(() => {
+    const box = lookups.data?.boxes.find((item) => item.id === form.box_id);
+    return (box?.box_assets || []).map((item) => item.assets).filter(Boolean);
+  }, [form.box_id, lookups.data]);
+
+  const selectedAssetsCount = form.selected_asset_ids.length;
+
   const getBoxName = (boxId) => lookups.data?.boxes.find((box) => box.id === boxId)?.name || boxId;
   const getAssetName = (assetId) => {
     const asset = lookups.data?.assets.find((item) => item.id === assetId);
@@ -51,20 +67,58 @@ const LoansPage = () => {
   const getLabName = (labId) => lookups.data?.labs.find((lab) => lab.id === labId)?.name || labId;
   const getRoomName = (roomId) => lookups.data?.rooms.find((room) => room.id === roomId)?.name || roomId;
 
+  const resetForm = () => {
+    setForm(createInitialForm());
+    setFeedback("");
+    setShowAssetsSection(false);
+    setShowForm(false);
+  };
+
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    if (name === "room_id") {
-      const selectedRoom = lookups.data?.rooms.find((room) => room.id === value);
+    if (name === "box_id") {
       setForm((current) => ({
         ...current,
-        room_id: value,
-        room_name: selectedRoom?.name || current.room_name
+        box_id: value,
+        selected_asset_ids: []
+      }));
+      return;
+    }
+
+    if (name === "location_key") {
+      const selectedLocation = locationOptions.find((location) => location.key === value);
+      setForm((current) => ({
+        ...current,
+        location_key: value,
+        room_id: selectedLocation?.type === "room" ? selectedLocation.id : "",
+        location_lab_id: selectedLocation?.type === "lab" ? selectedLocation.id : "",
+        room_name: selectedLocation?.name || ""
       }));
       return;
     }
 
     setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const toggleAssetSelection = (assetId) => {
+    setForm((current) => ({
+      ...current,
+      selected_asset_ids: current.selected_asset_ids.includes(assetId)
+        ? current.selected_asset_ids.filter((id) => id !== assetId)
+        : [...current.selected_asset_ids, assetId]
+    }));
+  };
+
+  const handleSelectAllAssets = () => {
+    setForm((current) => ({
+      ...current,
+      selected_asset_ids: selectedBoxAssets.map((asset) => asset.id)
+    }));
+  };
+
+  const handleClearAssets = () => {
+    setForm((current) => ({ ...current, selected_asset_ids: [] }));
   };
 
   const handleSubmit = async (event) => {
@@ -81,14 +135,16 @@ const LoansPage = () => {
         box_id: form.box_id,
         responsible_name: form.responsible_name.trim(),
         room_id: form.room_id || null,
-        room_name: form.room_name.trim() || null,
+        location_lab_id: form.location_lab_id || null,
+        room_name: form.room_name || null,
         session_class: form.session_class.trim(),
         expected_return_at: new Date(form.expected_return_at).toISOString(),
         notes: form.notes.trim() || null,
-        status: "active"
+        selected_asset_ids: form.selected_asset_ids
       });
 
-      setForm(initialForm);
+      setForm(createInitialForm());
+      setShowAssetsSection(false);
       setShowForm(false);
       await loans.reload();
     } catch (err) {
@@ -123,7 +179,7 @@ const LoansPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Movimentação e histórico de uso</h1>
-        <Button onClick={() => setShowForm((current) => !current)}>
+        <Button onClick={() => (showForm ? resetForm() : setShowForm(true))}>
           <Icon name="plus" className="mr-2" />
           {showForm ? "Fechar" : "Novo empréstimo"}
         </Button>
@@ -144,28 +200,74 @@ const LoansPage = () => {
               <Input name="responsible_name" value={form.responsible_name} onChange={handleChange} />
             </FormField>
             <FormField label="Sala cadastrada">
-              <Select name="room_id" value={form.room_id} onChange={handleChange}>
+              <Select name="location_key" value={form.location_key} onChange={handleChange}>
                 <option value="">Selecione</option>
-                {lookups.data?.rooms.map((room) => (
-                  <option key={room.id} value={room.id}>{room.name}</option>
+                {locationOptions.map((location) => (
+                  <option key={location.key} value={location.key}>{location.label}</option>
                 ))}
               </Select>
             </FormField>
-            <FormField label="Sala / Local livre">
-              <Input name="room_name" value={form.room_name} onChange={handleChange} placeholder="Ex: Sala 12, Bloco B, Laboratório Maker" />
-            </FormField>
+            <div className="md:col-span-2">
+              <div className="rounded-md border border-border bg-white">
+                <button
+                  type="button"
+                  onClick={() => setShowAssetsSection((current) => !current)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium"
+                >
+                  <span>Ativos utilizados no empréstimo</span>
+                  <span className="text-muted-foreground">{showAssetsSection ? "Recolher" : "Expandir"}</span>
+                </button>
+                {showAssetsSection ? (
+                  <div className="space-y-3 border-t px-4 py-3">
+                    {!form.box_id ? (
+                      <div className="text-sm text-muted-foreground">Selecione o carrinho para listar os ativos vinculados.</div>
+                    ) : selectedBoxAssets.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">Nenhum ativo vinculado a este carrinho.</div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-sm text-muted-foreground">{selectedAssetsCount} de {selectedBoxAssets.length} ativos selecionados</div>
+                          <div className="flex gap-2">
+                            <Button type="button" variant="ghost" size="sm" onClick={handleSelectAllAssets}>Selecionar todos</Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={handleClearAssets}>Desmarcar todos</Button>
+                          </div>
+                        </div>
+                        <div className="max-h-72 space-y-2 overflow-y-auto">
+                          {selectedBoxAssets.map((asset) => {
+                            const selected = form.selected_asset_ids.includes(asset.id);
+                            return (
+                              <label key={asset.id} className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm ${selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => toggleAssetSelection(asset.id)}
+                                  className="mt-1 h-4 w-4 rounded border-border"
+                                />
+                                <span>{formatAssetIdentifier(asset)}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
             <FormField label="Turma / Disciplina">
               <Input name="session_class" value={form.session_class} onChange={handleChange} />
             </FormField>
             <FormField label="Previsão de devolução">
               <Input name="expected_return_at" type="datetime-local" value={form.expected_return_at} onChange={handleChange} />
             </FormField>
-            <FormField label="Observações">
-              <Input name="notes" value={form.notes} onChange={handleChange} />
-            </FormField>
+            <div className="md:col-span-2">
+              <FormField label="Observações">
+                <Textarea name="notes" value={form.notes} onChange={handleChange} />
+              </FormField>
+            </div>
             {feedback ? <div className="md:col-span-2"><InlineMessage tone="error">{feedback}</InlineMessage></div> : null}
             <div className="flex justify-end gap-2 md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
               <Button type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar empréstimo"}</Button>
             </div>
           </form>
@@ -208,7 +310,14 @@ const LoansPage = () => {
                 {loans.data.map((loan) => (
                   <tr key={loan.id} className="hover:bg-muted/50">
                     <td>{getTargetTypeLabel(loan)}</td>
-                    <td className="font-medium">{getTargetLabel(loan)}</td>
+                    <td className="font-medium">
+                      <div>{getTargetLabel(loan)}</div>
+                      {loan.box_loan_assets?.length ? (
+                        <div className="text-sm font-normal text-muted-foreground">
+                          {loan.box_loan_assets.length} ativos rastreados
+                        </div>
+                      ) : null}
+                    </td>
                     <td>{loan.responsible_name}</td>
                     <td className="text-muted-foreground">{loan.room_name || getRoomName(loan.room_id) || "-"} / {loan.session_class}</td>
                     <td>{formatDateTime(loan.borrowed_at)}</td>

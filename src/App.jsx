@@ -9,6 +9,7 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const AssetsPage = lazy(() => import("./pages/AssetsPage"));
 const BoxesPage = lazy(() => import("./pages/BoxesPage"));
 const LabsPage = lazy(() => import("./pages/LabsPage"));
+const RoomsPage = lazy(() => import("./pages/RoomsPage"));
 const LoansPage = lazy(() => import("./pages/LoansPage"));
 const ChecklistsPage = lazy(() => import("./pages/ChecklistsPage"));
 const AuditsPage = lazy(() => import("./pages/AuditsPage"));
@@ -33,6 +34,7 @@ const App = () => (
         <Route path="assets" element={<RoleRoute roles={["admin"]}><AssetsPage /></RoleRoute>} />
         <Route path="boxes" element={<RoleRoute roles={["admin"]}><BoxesPage /></RoleRoute>} />
         <Route path="labs" element={<RoleRoute roles={["admin"]}><LabsPage /></RoleRoute>} />
+        <Route path="rooms" element={<RoleRoute roles={["admin"]}><RoomsPage /></RoleRoute>} />
         <Route path="loans" element={<LoansPage />} />
         <Route path="checklists" element={<ChecklistsPage />} />
         <Route path="audits" element={<RoleRoute roles={["admin"]}><AuditsPage /></RoleRoute>} />

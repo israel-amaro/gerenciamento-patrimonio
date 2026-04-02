@@ -38,7 +38,16 @@ export const lookupApi = {
   rooms: () => unwrap(supabase.from("rooms").select("*").order("name")),
   profiles: () => unwrap(supabase.from("profiles").select("id, full_name, email, role").order("full_name")),
   assets: () => unwrap(supabase.from("assets").select("id, tag_code, model, status, lab_id").order("tag_code")),
-  boxes: () => unwrap(supabase.from("boxes").select("id, name, status").order("name"))
+  boxes: () => unwrap(
+    supabase
+      .from("boxes")
+      .select("id, name, status, box_assets(asset_id, assets(id, tag_code, model, serial_number, host_name, domain_name))")
+      .order("name")
+  ),
+  async loanLocations() {
+    const [rooms, labs] = await Promise.all([this.rooms(), this.labs()]);
+    return { rooms, labs };
+  }
 };
 
 export const assetsApi = {
@@ -97,7 +106,7 @@ export const loansApi = {
     const { search = "", dateFrom = "", dateTo = "", targetType = "" } = typeof filters === "string" ? { search: filters } : filters;
     let query = supabase
       .from("loans")
-      .select("id, box_id, asset_id, lab_id, room_id, room_name, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes")
+      .select("id, box_id, asset_id, lab_id, room_id, location_lab_id, location_type, room_name, responsible_name, session_class, borrowed_at, expected_return_at, returned_at, status, notes, box_loan_assets(asset_id)")
       .order("borrowed_at", { ascending: false });
 
     if (search) {
@@ -128,9 +137,12 @@ export const loansApi = {
         p_box_id: payload.box_id,
         p_responsible_name: payload.responsible_name,
         p_room_id: payload.room_id,
+        p_location_lab_id: payload.location_lab_id,
         p_session_class: payload.session_class,
         p_expected_return_at: payload.expected_return_at,
-        p_notes: payload.notes
+        p_notes: payload.notes,
+        p_room_name: payload.room_name,
+        p_selected_asset_ids: payload.selected_asset_ids || []
       })
     );
   },
@@ -395,6 +407,9 @@ export const publicScanApi = {
   getBoxContext(boxId) {
     return unwrap(supabase.rpc("get_public_box_context", { p_box_id: boxId }).maybeSingle());
   },
+  getPublicBoxAssets(boxId) {
+    return unwrap(supabase.rpc("get_public_box_assets", { p_box_id: boxId }));
+  },
   getLabContext(labId) {
     return unwrap(supabase.rpc("get_public_lab_context", { p_lab_id: labId }).maybeSingle());
   },
@@ -404,10 +419,12 @@ export const publicScanApi = {
         p_box_id: payload.box_id,
         p_responsible_name: payload.responsible_name,
         p_room_id: payload.room_id || null,
+        p_location_lab_id: payload.location_lab_id || null,
         p_room_name: payload.room_name || null,
         p_session_class: payload.session_class,
         p_expected_return_at: payload.expected_return_at,
-        p_notes: payload.notes
+        p_notes: payload.notes,
+        p_selected_asset_ids: payload.selected_asset_ids || []
       })
     );
   },
@@ -417,6 +434,7 @@ export const publicScanApi = {
         p_lab_id: payload.lab_id,
         p_responsible_name: payload.responsible_name,
         p_room_id: payload.room_id || null,
+        p_location_lab_id: payload.location_lab_id || null,
         p_room_name: payload.room_name || null,
         p_session_class: payload.session_class,
         p_expected_return_at: payload.expected_return_at,
@@ -466,5 +484,26 @@ export const labsApi = {
       await unwrap(supabase.from("assets").update({ lab_id: id }).in("id", assetIds));
     }
     return { id };
+  }
+};
+
+export const roomsApi = {
+  list(search = "") {
+    let query = supabase
+      .from("rooms")
+      .select("*")
+      .order("name");
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,building.ilike.%${search}%,floor.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    return unwrap(query);
+  },
+  create(payload) {
+    return unwrap(supabase.from("rooms").insert(payload).select("id").single());
+  },
+  update(id, payload) {
+    return unwrap(supabase.from("rooms").update(payload).eq("id", id).select("id").single());
   }
 };

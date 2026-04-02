@@ -10,6 +10,7 @@ const items = [
   { label: "Ativos", path: "/app/assets", icon: "laptop", roles: ["admin"] },
   { label: "Carrinhos", path: "/app/boxes", icon: "package", roles: ["admin"] },
   { label: "Laboratórios", path: "/app/labs", icon: "clipboard-check", roles: ["admin"] },
+  { label: "Salas", path: "/app/rooms", icon: "door-open", roles: ["admin"] },
   { label: "Empréstimos", path: "/app/loans", icon: "arrow-right-left" },
   { label: "Checklist Rápido", path: "/app/checklists", icon: "clipboard-check" },
   { label: "Auditoria técnica", path: "/app/audits", icon: "scan-line", roles: ["admin"] },

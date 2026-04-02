@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, InlineMessage, Input, LoadingState, Select, Textarea } from "../components/ui";
 import { checklistsApi, incidentsApi, loansApi, lookupApi, publicScanApi } from "../lib/api";
-import { formatDateTime } from "../lib/utils";
+import { buildLocationOptions, formatDateTime } from "../lib/utils";
 
 const checklistOptions = [
   { value: "ok", label: "Tudo OK" },
@@ -15,7 +15,9 @@ const createBorrowForm = () => {
 
   return {
     responsible_name: "",
+    location_key: "",
     room_id: "",
+    location_lab_id: "",
     room_name: "",
     session_class: "",
     expected_return_at: localIso,
@@ -39,13 +41,16 @@ const PublicLabPage = () => {
   const { labId } = useParams();
   const [context, setContext] = useState(null);
   const [rooms, setRooms] = useState([]);
-  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [labs, setLabs] = useState([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
   const [borrowForm, setBorrowForm] = useState(createBorrowForm);
   const [returnForm, setReturnForm] = useState(createReturnForm(null));
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState("");
   const [borrowing, setBorrowing] = useState(false);
   const [returning, setReturning] = useState(false);
+
+  const locationOptions = useMemo(() => buildLocationOptions({ rooms, labs }), [rooms, labs]);
 
   const loadContext = async () => {
     setLoading(true);
@@ -74,20 +79,21 @@ const PublicLabPage = () => {
   useEffect(() => {
     let active = true;
 
-    const loadRooms = async () => {
+    const loadLocations = async () => {
       try {
-        const data = await lookupApi.rooms();
+        const data = await lookupApi.loanLocations();
         if (active) {
-          setRooms(data);
+          setRooms(data.rooms || []);
+          setLabs(data.labs || []);
         }
       } finally {
         if (active) {
-          setRoomsLoading(false);
+          setLocationsLoading(false);
         }
       }
     };
 
-    loadRooms();
+    loadLocations();
 
     return () => {
       active = false;
@@ -97,12 +103,14 @@ const PublicLabPage = () => {
   const handleBorrowChange = (event) => {
     const { name, value } = event.target;
 
-    if (name === "room_id") {
-      const selectedRoom = rooms.find((room) => room.id === value);
+    if (name === "location_key") {
+      const selectedLocation = locationOptions.find((location) => location.key === value);
       setBorrowForm((current) => ({
         ...current,
-        room_id: value,
-        room_name: selectedRoom?.name || current.room_name
+        location_key: value,
+        room_id: selectedLocation?.type === "room" ? selectedLocation.id : "",
+        location_lab_id: selectedLocation?.type === "lab" ? selectedLocation.id : "",
+        room_name: selectedLocation?.name || ""
       }));
       return;
     }
@@ -129,7 +137,8 @@ const PublicLabPage = () => {
         lab_id: context.lab_id,
         responsible_name: borrowForm.responsible_name.trim(),
         room_id: borrowForm.room_id || null,
-        room_name: borrowForm.room_name.trim() || null,
+        location_lab_id: borrowForm.location_lab_id || null,
+        room_name: borrowForm.room_name || null,
         session_class: borrowForm.session_class.trim(),
         expected_return_at: new Date(borrowForm.expected_return_at).toISOString(),
         notes: borrowForm.notes.trim() || null
@@ -286,15 +295,12 @@ const PublicLabPage = () => {
                         <Input name="responsible_name" value={borrowForm.responsible_name} onChange={handleBorrowChange} />
                       </FormField>
                       <FormField label="Sala cadastrada">
-                        <Select name="room_id" value={borrowForm.room_id} onChange={handleBorrowChange} disabled={roomsLoading}>
+                        <Select name="location_key" value={borrowForm.location_key} onChange={handleBorrowChange} disabled={locationsLoading}>
                           <option value="">Selecione</option>
-                          {rooms.map((room) => (
-                            <option key={room.id} value={room.id}>{room.name}</option>
+                          {locationOptions.map((location) => (
+                            <option key={location.key} value={location.key}>{location.label}</option>
                           ))}
                         </Select>
-                      </FormField>
-                      <FormField label="Sala / Local livre">
-                        <Input name="room_name" value={borrowForm.room_name} onChange={handleBorrowChange} placeholder="Ex: Sala 14, Bloco A" />
                       </FormField>
                       <FormField label="Turma / Disciplina">
                         <Input name="session_class" value={borrowForm.session_class} onChange={handleBorrowChange} />
